@@ -38,7 +38,7 @@
     "@tiptap/extensions": "^3.31.3",
     "@tiptap/pm": "^3.31.3",
     "@tiptap/starter-kit": "^3.31.3",
-    "@tiptap/suggestion": "^3.31.3",
+    "@tiptap/suggestion": "^3.31.4",
     "@tiptap/y-tiptap": "^3.0.9",
     "chokidar": "^5.0.0",
     "express": "^4.19.2",
