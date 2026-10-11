@@ -4,15 +4,35 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    groups:
+      tiptap:
+        patterns: ["@tiptap/*", "@fontsource/*"]
+      minor-and-patch:
+        update-types: [minor, patch]
+        exclude-patterns: ["@tiptap/*"]
+    ignore:
+      # y-websocket 3 change l'API du client : migration à faire à la main
+      - dependency-name: y-websocket
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    groups:
+      actions:
+        patterns: ["*"]
   - package-ecosystem: docker
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # Node reste sur une version LTS (numéro pair)
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: cargo
     directory: /desktop/src-tauri
     schedule:
       interval: weekly
+    groups:
+      rust:
+        patterns: ["*"]
