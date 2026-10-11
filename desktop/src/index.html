@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Yariche</title>
+  <style>
+    :root { color-scheme: dark light; --bg: #141414; --text: #eaeaea; --muted: #9c9ca0; --border: #414141; --field: #1f1f1f; }
+    @media (prefers-color-scheme: light) { :root { --bg: #ffffff; --text: #121212; --muted: #6b6b70; --border: #d9d9dc; --field: #f6f6f7; } }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; margin: 0; }
+    body { display: flex; align-items: center; justify-content: center; background: var(--bg); color: var(--text);
+      font: 15px -apple-system, "Segoe UI", "Inter", Ubuntu, "Noto Sans", sans-serif; user-select: none; }
+    .card { width: 420px; max-width: calc(100vw - 32px); text-align: center; padding: 24px; }
+    .logo { width: 64px; height: 64px; margin: 0 auto 18px; display: block; }
+    h1 { font-size: 20px; margin: 0 0 8px; }
+    p { margin: 0 0 8px; color: var(--muted); line-height: 1.45; }
+    code { font: 13px ui-monospace, Consolas, "DejaVu Sans Mono", monospace; color: var(--text); }
+    form { display: flex; gap: 8px; margin-top: 16px; }
+    input { flex: 1; height: 36px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--field);
+      color: var(--text); font: inherit; user-select: text; }
+    .row { margin-top: 18px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+    button { font: inherit; font-size: 14px; height: 36px; padding: 0 16px; border-radius: 8px; border: 1px solid var(--border);
+      background: transparent; color: inherit; cursor: pointer; }
+    button.primary { background: #1e96eb; border-color: #1e96eb; color: #fff; }
+    .error { color: #e5484d; min-height: 1.4em; margin-top: 10px; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <svg class="logo" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg"><defs>
+      <linearGradient id="bg" x1="0.12" y1="0" x2="0.88" y2="1"><stop offset="0" stop-color="#4163f5"/>
+      <stop offset="0.52" stop-color="#1c9fe6"/><stop offset="1" stop-color="#19cfa3"/></linearGradient></defs>
+      <rect width="1024" height="1024" rx="232" fill="url(#bg)"/>
+      <g fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="112">
+      <path d="M704 262 L512 540" stroke="#fff" stroke-opacity="0.62"/>
+      <path d="M320 262 L512 540 L512 780" stroke="#fff"/></g></svg>
+
+    <div id="loading">
+      <h1>Yariche</h1>
+      <p id="loading-text">Connexion au serveur…</p>
+    </div>
+
+    <div id="setup" class="hidden">
+      <h1>Adresse du serveur Yariche</h1>
+      <p>Par exemple <code>https://notes.exemple.fr</code></p>
+      <form id="setup-form">
+        <input id="server-input" type="url" required placeholder="https://notes.exemple.fr" autocomplete="off" />
+        <button class="primary" type="submit">Ouvrir</button>
+      </form>
+      <p id="setup-error" class="error"></p>
+    </div>
+
+    <div id="offline" class="hidden">
+      <h1>Serveur injoignable</h1>
+      <p>Impossible de joindre <code id="offline-url"></code>.</p>
+      <p>Vérifie la connexion (VPN, réseau local) ou l'adresse du serveur.</p>
+      <div class="row">
+        <button class="primary" id="retry">Réessayer</button>
+        <button id="change">Changer d'adresse…</button>
+      </div>
+    </div>
+  </div>
+  <script src="start.js"></script>
+</body>
+</html>

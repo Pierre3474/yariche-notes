@@ -1,0 +1,31 @@
+name: Bug
+description: Something does not work as expected / Quelque chose ne marche pas
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened? / Que se passe-t-il ?
+      description: Steps to reproduce, what you expected, what you got.
+    validations:
+      required: true
+  - type: dropdown
+    id: where
+    attributes:
+      label: Where / Où
+      options:
+        - Web app
+        - macOS app
+        - Nextcloud sync
+        - Server / Docker
+    validations:
+      required: true
+  - type: textarea
+    id: env
+    attributes:
+      label: Version, browser, OS
+  - type: textarea
+    id: logs
+    attributes:
+      label: Server logs (docker compose logs yariche)
+      render: shell

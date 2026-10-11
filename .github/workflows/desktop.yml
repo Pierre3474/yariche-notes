@@ -1,0 +1,163 @@
+name: Apps de bureau (Windows, Linux)
+
+# Windows : installateurs .msi et .exe (NSIS). Linux : .deb (Debian, Ubuntu) et .rpm (Fedora).
+# Chaque paquet est ensuite installé et lancé dans un système propre (Debian 12 et 13,
+# Fedora, Windows) : dépendances résolues, app qui démarre, schéma yariche:// déclaré.
+# Tag desktop-v* : publication d'une release avec les paquets.
+
+on:
+  workflow_dispatch:
+    inputs:
+      server_url:
+        description: "Adresse du serveur proposée par défaut (vide : demandée au premier lancement)"
+        required: false
+        default: ""
+  push:
+    tags: ["desktop-v*"]
+  pull_request:
+    paths: ["desktop/**", ".github/workflows/desktop.yml"]
+
+# Lecture seule par défaut ; seule la publication de la release écrit
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows
+            os: windows-latest
+            bundles: msi,nsis
+          - name: Linux
+            # glibc 2.35 : paquets utilisables sur Debian 12+, Ubuntu 22.04+, Fedora récentes
+            os: ubuntu-22.04
+            bundles: deb,rpm
+    runs-on: ${{ matrix.os }}
+    env:
+      YARICHE_SERVER_URL: ${{ inputs.server_url || vars.YARICHE_SERVER_URL }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+      - uses: dtolnay/rust-toolchain@6bed0761d98439e5a578e2877258200ad565ba87 # stable
+      - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: desktop/src-tauri
+      - name: Dépendances système (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf rpm
+      - run: npm ci
+        working-directory: desktop
+      - run: npx tauri build --bundles ${{ matrix.bundles }}
+        working-directory: desktop
+      - name: Sommes de contrôle SHA-256
+        shell: bash
+        working-directory: desktop/src-tauri/target/release/bundle
+        run: |
+          # Chemins relatifs au paquet téléchargé (msi/…, deb/…) : « sha256sum -c » depuis sa racine
+          find . -type f \( -name '*.msi' -o -name '*-setup.exe' -o -name '*.deb' -o -name '*.rpm' \) -exec sha256sum {} + \
+            | sed 's# \*\./#  #; s#  \./#  #' > SHA256SUMS-${{ matrix.name }}.txt
+          cat SHA256SUMS-${{ matrix.name }}.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: yariche-${{ matrix.name }}
+          if-no-files-found: error
+          path: |
+            desktop/src-tauri/target/release/bundle/msi/*.msi
+            desktop/src-tauri/target/release/bundle/nsis/*.exe
+            desktop/src-tauri/target/release/bundle/deb/*.deb
+            desktop/src-tauri/target/release/bundle/rpm/*.rpm
+            desktop/src-tauri/target/release/bundle/SHA256SUMS-*.txt
+
+  test-linux:
+    name: Installation et lancement (${{ matrix.image }})
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ["debian:12", "debian:13", "fedora:latest"]
+    container: ${{ matrix.image }}
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: yariche-Linux
+      - name: Installer le paquet (dépendances comprises)
+        run: |
+          if command -v apt-get >/dev/null; then
+            apt-get update
+            apt-get install -y ./deb/*.deb xvfb dbus-x11 procps
+          else
+            dnf install -y ./rpm/*.rpm xorg-x11-server-Xvfb dbus-daemon dbus-tools procps-ng
+          fi
+      - name: Schéma yariche:// déclaré
+        run: grep -H "x-scheme-handler/yariche" /usr/share/applications/*.desktop
+      - name: Lancer l'app (elle doit tourner 15 s sans s'arrêter)
+        run: |
+          Xvfb :99 -screen 0 1280x800x24 >/dev/null 2>&1 &
+          export DISPLAY=:99
+          # Conteneur de test sans espace de noms utilisateur : bac à sable de WebKit désactivé ici seulement
+          export WEBKIT_DISABLE_SANDBOX_THIS_IS_DANGEROUS=1 WEBKIT_DISABLE_DMABUF_RENDERER=1
+          sleep 2
+          dbus-run-session -- yariche > app.log 2>&1 &
+          sleep 15
+          if pgrep -x yariche >/dev/null; then
+            echo "L'app tourne."
+            pkill -x yariche || true
+          else
+            echo "L'app s'est arrêtée :"
+            cat app.log
+            exit 1
+          fi
+          cat app.log
+
+  test-windows:
+    name: Installation et lancement (Windows)
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: yariche-Windows
+      - name: Installer (NSIS, silencieux), lancer, vérifier le schéma yariche://
+        shell: pwsh
+        run: |
+          $setup = Get-ChildItem -Recurse -Filter *-setup.exe | Select-Object -First 1
+          Start-Process $setup.FullName -ArgumentList '/S' -Wait
+          $exe = Get-ChildItem "$env:LOCALAPPDATA", "$env:ProgramFiles" -Recurse -Filter yariche.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $exe) { throw "yariche.exe introuvable après installation" }
+          $p = Start-Process $exe.FullName -PassThru
+          Start-Sleep 15
+          if ($p.HasExited) { throw "l'app s'est arrêtée (code $($p.ExitCode))" }
+          Write-Host "L'app tourne : $($exe.FullName)"
+          Stop-Process $p -Force
+          $scheme = Get-ItemProperty "HKCU:\Software\Classes\yariche\shell\open\command" -ErrorAction SilentlyContinue
+          if (-not $scheme) { throw "schéma yariche:// non déclaré" }
+          Write-Host "yariche:// -> $($scheme.'(default)')"
+
+  release:
+    name: Release
+    if: startsWith(github.ref, 'refs/tags/desktop-v')
+    needs: [test-linux, test-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publier
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" \
+            --title "Yariche pour Windows et Linux ($GITHUB_REF_NAME)" \
+            --notes "Windows : .msi ou -setup.exe. Debian/Ubuntu : .deb. Fedora : .rpm." \
+            $(find dist -type f)

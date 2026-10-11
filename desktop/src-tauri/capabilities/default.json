@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Page de démarrage de l'app (locale) : réglage de l'adresse et ouverture du serveur. Les pages du serveur (distantes) n'ont accès à aucune commande.",
+  "windows": ["main"],
+  "local": true,
+  "permissions": ["core:default", "allow-get-server-url", "allow-set-server-url", "allow-open-server"]
+}

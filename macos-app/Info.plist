@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key>
+  <string>Yariche</string>
+  <key>CFBundleDisplayName</key>
+  <string>Yariche</string>
+  <key>CFBundleIdentifier</key>
+  <string>app.yariche</string>
+  <key>CFBundleVersion</key>
+  <string>7</string>
+  <key>CFBundleShortVersionString</key>
+  <string>1.6</string>
+  <key>CFBundleIconFile</key>
+  <string>AppIcon</string>
+  <key>LSApplicationCategoryType</key>
+  <string>public.app-category.productivity</string>
+  <key>NSHumanReadableCopyright</key>
+  <string>Yariche — notes Markdown collaboratives (licence MIT)</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleExecutable</key>
+  <string>MdCollab</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>12.0</string>
+  <key>NSHighResolutionCapable</key>
+  <true/>
+  <key>CFBundleURLTypes</key>
+  <array>
+    <dict>
+      <key>CFBundleURLName</key>
+      <string>app.yariche.login</string>
+      <key>CFBundleURLSchemes</key>
+      <array>
+        <string>yariche</string>
+      </array>
+    </dict>
+  </array>
+  <key>NSLocalNetworkUsageDescription</key>
+  <string>Yariche se connecte à ton serveur Yariche, qui peut se trouver sur le réseau local.</string>
+  <key>NSAppTransportSecurity</key>
+  <dict>
+    <key>NSAllowsLocalNetworking</key>
+    <true/>
+  </dict>
+</dict>
+</plist>

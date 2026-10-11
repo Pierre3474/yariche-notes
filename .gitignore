@@ -1,0 +1,16 @@
+node_modules/
+dist/
+data/
+.env
+.env.*
+!.env.example
+*.tgz
+.DS_Store
+# App macOS : sorties de build
+macos-app/.build/
+macos-app/Yariche.app/
+macos-app/build.noindex/
+macos-app/.cache/
+desktop/node_modules/
+desktop/src-tauri/target/
+desktop/src-tauri/gen/

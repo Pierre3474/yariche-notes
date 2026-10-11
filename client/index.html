@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Yariche</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png" />
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#191919" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="Yariche" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div class="app" id="app">
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-top">
+        <button id="sidebar-collapse" class="icon-btn" data-icon="sidebar" title="Replier la barre latérale (⌘\)"></button>
+      </div>
+      <div class="workspace">
+        <button id="vault-switcher" class="workspace-switch" title="Changer de coffre">
+          <img class="workspace-logo" src="/logo.svg" alt="" width="20" height="20" />
+          <span id="vault-name" class="workspace-name">Yariche</span>
+          <span class="workspace-chevron" data-icon="chevronsUpDown" data-icon-size="14"></span>
+        </button>
+        <span id="user-avatar" class="user-avatar"></span>
+      </div>
+
+      <div class="nav-row">
+        <button id="search-btn" class="nav-item" data-icon="search"><span>Rechercher</span><kbd>⌘K</kbd></button>
+        <button id="new-page-btn" class="new-doc-btn" data-icon="plus" data-icon-size="16" title="Nouvelle page"></button>
+      </div>
+      <button id="inbox-btn" class="nav-item" data-icon="inbox"><span>Boîte de réception</span><em id="inbox-badge" class="nav-badge hidden"></em></button>
+      <button id="journal-btn" class="nav-item" data-icon="calendar"><span>Journal du jour</span></button>
+      <button id="graph-toggle" class="nav-item" data-icon="graph"><span>Graphe des liens</span></button>
+
+      <div class="sidebar-scroll">
+        <div class="section" id="favorites-section">
+          <div class="section-label" data-section="favorites"><span>Favoris</span></div>
+          <nav id="favorites-list" class="page-list"></nav>
+        </div>
+
+        <div class="section">
+          <div class="section-label" data-section="pages">
+            <span>Fichiers</span>
+            <div class="explorer-tools">
+              <button id="section-new-page" class="section-add" data-icon="rename" data-icon-size="14" title="Nouvelle note"></button>
+              <button id="explorer-new-folder" class="section-add" data-icon="folder" data-icon-size="14" title="Nouveau dossier"></button>
+              <button id="explorer-sort" class="section-add" data-icon="sort" data-icon-size="14" title="Changer l'ordre de tri"></button>
+              <button id="explorer-collapse" class="section-add" data-icon="chevronUp" data-icon-size="14" title="Tout replier / déplier"></button>
+            </div>
+          </div>
+          <div id="tag-filter-banner" class="tag-filter-banner hidden">
+            <span id="tag-filter-label"></span>
+            <button id="tag-filter-clear">✕</button>
+          </div>
+          <nav id="page-list" class="page-list"></nav>
+        </div>
+
+        <div class="section">
+          <div class="section-label" data-section="others"><span>Autres</span></div>
+          <nav class="page-list" data-section-body="others">
+            <button id="trash-toggle" class="nav-item" data-icon="trash"><span>Corbeille</span></button>
+            <button id="import-btn" class="nav-item" data-icon="import"><span>Importer un .md</span></button>
+            <button id="ai-access-btn" class="nav-item" data-icon="sparkle"><span>Accès IA (MCP)</span></button>
+          </nav>
+        </div>
+      </div>
+
+      <div class="sidebar-footer">
+        <span id="conn-status" class="conn-status offline">hors ligne</span>
+        <div class="sidebar-footer-actions">
+          <button id="theme-toggle" class="icon-btn" title="Changer de thème"></button>
+          <a id="logout-btn" href="/logout" class="icon-btn" data-icon="logout" title="Déconnexion"></a>
+        </div>
+      </div>
+      <div class="sidebar-resizer" id="sidebar-resizer"></div>
+    </aside>
+
+    <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
+
+    <main class="main" id="main">
+      <header class="topbar">
+        <button id="sidebar-open" class="icon-btn hidden" data-icon="sidebar" title="Afficher la barre latérale"></button>
+        <button id="nav-back" class="icon-btn nav-arrow" data-icon="arrowLeft" data-icon-size="18" title="Précédent (⌥⌘←)"></button>
+        <button id="nav-forward" class="icon-btn nav-arrow" data-icon="arrowRight" data-icon-size="18" title="Suivant (⌥⌘→)"></button>
+        <nav id="breadcrumb" class="breadcrumb"></nav>
+        <button id="mode-btn" class="icon-btn" title="Basculer lecture / édition (⌘E)"></button>
+        <button id="fav-btn" class="icon-btn" data-icon="star" title="Ajouter aux favoris"></button>
+        <button id="doc-menu-btn" class="icon-btn" data-icon="more" title="Plus d'actions"></button>
+        <div class="topbar-spacer"></div>
+        <div id="presence" class="presence"></div>
+        <button id="comments-btn" class="icon-btn comments-btn" data-icon="message" title="Commentaires (⌘⇧M)"><em id="comments-count" class="count-badge hidden"></em></button>
+        <button id="share-btn" class="share-btn hidden" data-icon="lock" data-icon-size="14"><span>Partager</span></button>
+      </header>
+      <div id="trash-banner" class="trash-banner hidden"></div>
+
+      <div class="scroller" id="scroller">
+        <div id="conflict-banner" class="conflict-banner hidden">
+          <span>Ce fichier a été modifié en dehors de l'éditeur (sync externe ?).</span>
+          <button id="conflict-reload">Recharger le fichier</button>
+          <button id="conflict-dismiss">Ignorer</button>
+        </div>
+
+        <div id="doc-cover" class="doc-cover no-cover">
+          <div class="doc-cover-actions">
+            <button id="cover-change-btn" class="cover-action-btn">Changer</button>
+            <button id="cover-remove-btn" class="cover-action-btn">Retirer</button>
+          </div>
+        </div>
+        <div id="cover-picker" class="popover cover-picker hidden">
+          <div class="cover-swatch cover-gradient-1" data-cover="gradient-1"></div>
+          <div class="cover-swatch cover-gradient-2" data-cover="gradient-2"></div>
+          <div class="cover-swatch cover-gradient-3" data-cover="gradient-3"></div>
+          <div class="cover-swatch cover-gradient-4" data-cover="gradient-4"></div>
+          <div class="cover-swatch cover-gradient-5" data-cover="gradient-5"></div>
+        </div>
+
+        <div class="doc-header" id="doc-header">
+          <nav id="doc-location" class="doc-location hidden" aria-label="Emplacement"></nav>
+          <button id="doc-icon" class="doc-icon hidden" title="Changer l'icône"></button>
+          <div class="doc-header-controls" id="doc-header-controls">
+            <button id="add-icon-btn" class="ghost-btn" data-icon="smile" data-icon-size="16"><span>Ajouter une icône</span></button>
+            <button id="add-cover-btn" class="ghost-btn" data-icon="image" data-icon-size="16"><span>Ajouter une couverture</span></button>
+          </div>
+          <h1 id="doc-title" class="doc-title" spellcheck="false" data-placeholder="Sans titre"></h1>
+        </div>
+
+        <div id="doc-properties" class="doc-properties hidden"></div>
+        <div id="editor" class="editor"></div>
+        <div id="folder-view" class="folder-view hidden"></div>
+        <div id="special-view" class="special-view hidden"></div>
+
+        <div id="backlinks-panel" class="backlinks-panel hidden">
+          <div class="backlinks-head">
+            <span>Liens bidirectionnels</span>
+            <button id="backlinks-toggle" class="pill-btn">Afficher</button>
+          </div>
+          <div id="backlinks-list" class="backlinks-list hidden"></div>
+        </div>
+
+        <!-- Rempli par database.js -->
+        <div id="db-view" class="db-view hidden"></div>
+      </div>
+
+      <!-- Rempli par board.js -->
+      <div id="board-view" class="board-view hidden"></div>
+
+      <!-- Barre d'état façon Obsidian : où est rangé le fichier, rétroliens, mots -->
+      <footer id="status-bar" class="status-bar">
+        <button id="status-path" class="status-path" title="Copier le chemin"></button>
+        <span class="topbar-spacer"></span>
+        <button id="status-sync" class="status-sync hidden"></button>
+        <span id="status-backlinks" class="status-item"></span>
+        <span id="status-words" class="status-item"></span>
+        <span id="status-chars" class="status-item"></span>
+      </footer>
+    </main>
+
+    <!-- Commentaires (panneau de droite, comme AFFiNE / Notion) -->
+    <aside id="comments-panel" class="right-panel hidden">
+      <div class="rp-header">
+        <span class="rp-title">Commentaires</span>
+        <select id="comments-filter" title="Filtrer">
+          <option value="open">Ouverts</option>
+          <option value="resolved">Résolus</option>
+          <option value="all">Tous</option>
+        </select>
+        <button id="comments-close" class="icon-btn" data-icon="x" data-icon-size="16" title="Fermer"></button>
+      </div>
+      <div id="comments-list" class="rp-body"></div>
+    </aside>
+
+    <!-- Boîte de réception : mentions et réponses -->
+    <div id="inbox-panel" class="inbox-panel popover hidden">
+      <div class="inbox-head">
+        <span>Boîte de réception</span>
+        <button id="inbox-read-all" class="ghost-btn">Tout marquer comme lu</button>
+      </div>
+      <div id="inbox-list" class="inbox-list"></div>
+    </div>
+
+    <!-- Sommaire flottant à droite (AFFiNE) -->
+    <div id="toc" class="toc hidden">
+      <div id="toc-lines" class="toc-lines"></div>
+      <div id="toc-panel" class="toc-panel popover"></div>
+    </div>
+
+    <!-- Barre de mise en forme sur sélection -->
+    <div id="bubble-menu" class="bubble-menu popover">
+      <select id="bubble-turn" title="Transformer en">
+        <option value="p">Texte</option>
+        <option value="h1">Titre 1</option>
+        <option value="h2">Titre 2</option>
+        <option value="h3">Titre 3</option>
+        <option value="bullet">Liste à puces</option>
+        <option value="ordered">Liste numérotée</option>
+        <option value="task">Liste de tâches</option>
+        <option value="quote">Citation</option>
+        <option value="code">Bloc de code</option>
+      </select>
+      <span class="bubble-sep"></span>
+      <button data-mark="bold" data-icon="bold" data-icon-size="16" title="Gras (⌘B)"></button>
+      <button data-mark="italic" data-icon="italic" data-icon-size="16" title="Italique (⌘I)"></button>
+      <button data-mark="strike" data-icon="strike" data-icon-size="16" title="Barré (⌘⇧S)"></button>
+      <button data-mark="code" data-icon="code" data-icon-size="16" title="Code (⌘E)"></button>
+      <button data-mark="highlight" data-icon="highlight" data-icon-size="16" title="Surligner (⌘⇧H)"></button>
+      <button data-mark="link" data-icon="link" data-icon-size="16" title="Lien (⌘K dans le texte)"></button>
+      <span class="bubble-sep"></span>
+      <button data-action="ai" class="bubble-ai" data-icon="sparkle" data-icon-size="16" title="Assistant IA (⌘J)"><span>IA</span></button>
+      <button data-action="comment" class="bubble-comment" data-icon="message" data-icon-size="16" title="Commenter (⌘⇧M)"><span>Commenter</span></button>
+    </div>
+
+    <!-- Poignée de bloc (+ et ⋮⋮) -->
+    <div id="block-handle" class="block-handle hidden">
+      <button id="block-add" class="block-handle-btn" data-icon="plus" data-icon-size="16" title="Ajouter un bloc en dessous"></button>
+      <div id="block-grip" class="block-handle-btn" draggable="true" data-icon="grip" data-icon-size="16" title="Glisser pour déplacer"></div>
+    </div>
+
+    <button id="ai-toggle" class="ai-toggle" data-icon="sparkle" title="Assistant IA"></button>
+    <div id="ai-panel" class="ai-panel popover hidden">
+      <div class="ai-panel-header">
+        <span data-icon="sparkle" data-icon-size="16"> Assistant IA</span>
+        <button id="ai-close" class="icon-btn">✕</button>
+      </div>
+      <textarea id="ai-prompt" class="ai-prompt" placeholder="Demande quelque chose sur ce document…"></textarea>
+      <div class="ai-actions">
+        <button id="ai-send" class="primary-btn">Envoyer</button>
+        <span id="ai-status" class="ai-status"></span>
+      </div>
+      <div id="ai-response" class="ai-response"></div>
+      <div class="ai-insert-row hidden" id="ai-insert-row">
+        <button id="ai-insert">Insérer dans le document</button>
+      </div>
+    </div>
+
+    <div id="ai-access-modal" class="modal-overlay hidden">
+      <div class="modal">
+        <div class="modal-header">
+          <span>Accès IA (MCP)</span>
+          <button id="ai-access-close" class="icon-btn">✕</button>
+        </div>
+        <div class="modal-section">
+          <p class="guest-link-help">Une IA (tout client MCP) lit et modifie tes notes
+          avec tes droits. Ses modifications gardent la version précédente dans l’historique.</p>
+          <div class="invite-row">
+            <input id="ai-token-name" type="text" maxlength="80" placeholder="Nom du jeton (ex. Assistant)" />
+            <select id="ai-token-scope">
+              <option value="write">lire et modifier</option>
+              <option value="read">lire seulement</option>
+            </select>
+            <button id="ai-token-create" class="primary-btn">Créer</button>
+          </div>
+        </div>
+        <div id="ai-token-new" class="modal-section hidden">
+          <label>Jeton — copie-le maintenant, il ne sera plus affiché</label>
+          <div class="guest-link-box">
+            <input id="ai-token-value" readonly />
+            <button id="ai-token-copy" class="primary-btn">Copier</button>
+          </div>
+          <label>Commande pour un client MCP</label>
+          <textarea id="ai-token-command" class="ai-command" rows="3" readonly></textarea>
+          <button id="ai-command-copy" class="link-btn">Copier la commande</button>
+        </div>
+        <div class="modal-section">
+          <label>Jetons actifs</label>
+          <div id="ai-token-list" class="token-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="rename-modal" class="modal-overlay hidden">
+      <div class="modal small-modal">
+        <div class="modal-header">
+          <span>Renommer</span>
+          <button id="rename-close" class="icon-btn">✕</button>
+        </div>
+        <div class="modal-section">
+          <input id="rename-input" type="text" />
+        </div>
+        <div class="modal-footer">
+          <button id="rename-confirm" class="primary-btn">Renommer</button>
+          <span id="rename-status" class="ai-status"></span>
+        </div>
+      </div>
+    </div>
+
+    <div id="share-modal" class="modal-overlay hidden">
+      <div class="modal">
+        <div class="modal-header">
+          <span>Partager « <span id="share-doc-name"></span> »</span>
+          <button id="share-close" class="icon-btn">✕</button>
+        </div>
+        <div class="modal-section guest-link">
+          <label>Lien d’invité — pour des personnes sans compte</label>
+          <div class="guest-link-row">
+            <label class="guest-switch"><input id="guest-link-on" type="checkbox" /><span>Partager par lien</span></label>
+            <select id="guest-link-role">
+              <option value="editor">peut modifier</option>
+              <option value="viewer">peut lire</option>
+            </select>
+          </div>
+          <div id="guest-link-box" class="guest-link-box hidden">
+            <input id="guest-link-url" readonly />
+            <button id="guest-link-copy" class="primary-btn">Copier</button>
+          </div>
+          <p class="guest-link-help"><span id="guest-link-help-text"></span>
+          <button id="guest-link-new" class="link-btn hidden">Nouveau lien (l’ancien ne marchera plus)</button></p>
+        </div>
+        <div class="modal-section account-share">
+          <label>Accès général</label>
+          <select id="share-visibility">
+            <option value="private">Privé — toi seul</option>
+            <option value="link">Toute personne avec le lien</option>
+            <option value="shared">Personnes invitées uniquement</option>
+          </select>
+          <select id="share-link-role" class="hidden">
+            <option value="viewer">peut lire</option>
+            <option value="editor">peut modifier</option>
+          </select>
+        </div>
+        <div class="modal-section account-share">
+          <label>Inviter (email ou identifiant)</label>
+          <p id="share-space-hint" class="guest-link-help hidden">Dossier partagé = espace d’équipe : tout ce qu’il contient l’est aussi, y compris ce qui y sera créé.</p>
+          <div class="invite-row">
+            <input id="invite-email" type="text" autocomplete="off" placeholder="personne@exemple.fr ou identifiant" />
+            <select id="invite-role">
+              <option value="viewer">peut lire</option>
+              <option value="editor">peut modifier</option>
+            </select>
+            <button id="invite-add" class="primary-btn">Ajouter</button>
+          </div>
+          <div id="share-list" class="share-list"></div>
+        </div>
+        <div class="modal-footer">
+          <button id="copy-link-btn" class="secondary-btn" data-icon="link" data-icon-size="14"><span>Copier le lien</span></button>
+          <div class="topbar-spacer"></div>
+          <span id="share-status" class="ai-status"></span>
+          <button id="share-save" class="primary-btn">Enregistrer</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Premier lancement : connexion à Nextcloud, choix du dossier (vault-ui.js) -->
+    <div id="onboarding" class="onboarding hidden"></div>
+
+    <!-- Dossier de travail : coffres et Nextcloud (vault-ui.js) -->
+    <div id="vault-modal" class="modal-overlay hidden">
+      <div class="modal vault-modal">
+        <div class="modal-header">
+          <span>Dossier de travail</span>
+          <button id="vault-close" class="icon-btn">✕</button>
+        </div>
+        <div id="vault-body" class="vault-body"></div>
+      </div>
+    </div>
+
+    <div id="history-modal" class="modal-overlay hidden">
+      <div class="modal">
+        <div class="modal-header">
+          <span>Historique de « <span id="history-doc-name"></span> »</span>
+          <button id="history-close" class="icon-btn">✕</button>
+        </div>
+        <div id="history-list" class="modal-section history-list"></div>
+      </div>
+    </div>
+
+    <div id="graph-overlay" class="graph-overlay hidden">
+      <div class="graph-modal">
+        <button id="graph-close" class="graph-close">Fermer</button>
+        <canvas id="graph-canvas"></canvas>
+      </div>
+    </div>
+
+    <div id="palette-overlay" class="palette-overlay hidden">
+      <div class="palette-modal popover">
+        <input id="palette-input" type="text" placeholder="Rechercher une page ou taper une commande…" autocomplete="off" />
+        <div id="palette-results" class="palette-results"></div>
+      </div>
+    </div>
+
+    <div id="trash-modal" class="modal-overlay hidden">
+      <div class="modal">
+        <div class="modal-header">
+          <span>Corbeille</span>
+          <button id="trash-close" class="icon-btn">✕</button>
+        </div>
+        <div id="trash-list" class="modal-section history-list"></div>
+      </div>
+    </div>
+
+    <div id="emoji-picker" class="popover emoji-picker hidden"></div>
+    <input id="import-input" type="file" accept=".md,.markdown,.txt,text/markdown" multiple hidden />
+  </div>
+
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

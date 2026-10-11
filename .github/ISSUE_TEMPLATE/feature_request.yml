@@ -1,0 +1,11 @@
+name: Idea
+description: Suggest a feature / Proposer une fonctionnalité
+labels: [enhancement]
+body:
+  - type: textarea
+    id: need
+    attributes:
+      label: What do you need? / De quoi as-tu besoin ?
+      description: The problem first, then the solution you imagine. Notion, AFFiNE or Obsidian references are welcome.
+    validations:
+      required: true

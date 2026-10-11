@@ -1,0 +1,62 @@
+{
+  "name": "yariche",
+  "version": "0.2.0",
+  "description": "Notes Markdown collaboratives en temps réel (façon Notion / AFFiNE) sur un coffre de fichiers .md façon Obsidian, synchronisable avec Nextcloud",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Pierre3474/yariche-notes.git"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "server": "node server/index.js",
+    "client": "vite",
+    "build": "vite build",
+    "dev": "concurrently -k -n SERVER,CLIENT -c blue,green \"npm:server\" \"npm:client\"",
+    "test": "node --test \"test/*.test.js\"",
+    "start": "node server/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.1",
+    "@tiptap/core": "^3.31.3",
+    "@tiptap/extension-bubble-menu": "^3.31.3",
+    "@tiptap/extension-code-block-lowlight": "^3.31.3",
+    "@tiptap/extension-collaboration": "^3.31.3",
+    "@tiptap/extension-collaboration-caret": "^3.31.3",
+    "@tiptap/extension-hard-break": "^3.31.3",
+    "@tiptap/extension-highlight": "^3.31.3",
+    "@tiptap/extension-image": "^3.31.3",
+    "@tiptap/extension-link": "^3.31.3",
+    "@tiptap/extension-list": "^3.31.3",
+    "@tiptap/extension-table": "^3.31.3",
+    "@tiptap/extension-text": "^3.31.3",
+    "@tiptap/extensions": "^3.31.3",
+    "@tiptap/pm": "^3.31.3",
+    "@tiptap/starter-kit": "^3.31.3",
+    "@tiptap/suggestion": "^3.31.3",
+    "@tiptap/y-tiptap": "^3.0.9",
+    "chokidar": "^3.6.0",
+    "express": "^4.19.2",
+    "express-session": "^1.18.0",
+    "highlight.js": "^11.12.0",
+    "lib0": "^0.2.117",
+    "lowlight": "^3.3.0",
+    "markdown-it-mark": "^4.0.0",
+    "multer": "^1.4.5-lts.1",
+    "openid-client": "^5.6.5",
+    "session-file-store": "^1.5.0",
+    "tiptap-markdown": "^0.9.0",
+    "ws": "^8.17.1",
+    "y-websocket": "^1.5.4",
+    "yjs": "^13.6.18",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "vite": "^8.3.1"
+  }
+}

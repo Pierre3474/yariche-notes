@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- Plein cadre, sans coins arrondis : iOS / Android appliquent leur propre masque -->
+  <defs>
+    <linearGradient id="bg" x1="0.12" y1="0" x2="0.88" y2="1">
+      <stop offset="0" stop-color="#4163f5"/>
+      <stop offset="0.52" stop-color="#1c9fe6"/>
+      <stop offset="1" stop-color="#19cfa3"/>
+    </linearGradient>
+    <radialGradient id="shine" cx="0.28" cy="0.05" r="0.95">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.30"/>
+      <stop offset="0.55" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1024" height="1024" fill="url(#bg)"/>
+  <rect width="1024" height="1024" fill="url(#shine)"/>
+  <g transform="translate(512 512) scale(0.8) translate(-512 -521)" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-width="112">
+    <path d="M704 262 L512 540" stroke="#ffffff" stroke-opacity="0.62"/>
+    <path d="M320 262 L512 540 L512 780" stroke="#ffffff"/>
+  </g>
+</svg>

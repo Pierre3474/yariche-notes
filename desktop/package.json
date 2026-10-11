@@ -1,0 +1,13 @@
+{
+  "name": "yariche-desktop",
+  "private": true,
+  "version": "1.0.1",
+  "description": "Yariche pour Windows et Linux (Tauri) : l'app web du serveur Yariche dans une fenêtre, connexion par le navigateur",
+  "scripts": {
+    "tauri": "tauri",
+    "build": "tauri build"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.11.5"
+  }
+}

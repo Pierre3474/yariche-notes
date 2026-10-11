@@ -1,0 +1,54 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Yariche",
+  "mainBinaryName": "yariche",
+  "version": "1.0.1",
+  "identifier": "app.yariche",
+  "build": {
+    "frontendDist": "../src"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "Productivity",
+    "publisher": "Yariche",
+    "copyright": "Licence MIT",
+    "shortDescription": "Notes Markdown collaboratives",
+    "longDescription": "Yariche : notes Markdown collaboratives rangées comme un coffre Obsidian, enregistrées dans Nextcloud. Cette app ouvre ton serveur Yariche dans une fenêtre ; la connexion se fait dans le navigateur par défaut.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "linux": {
+      "rpm": {
+        "depends": [
+          "webkit2gtk4.1"
+        ]
+      }
+    },
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      }
+    }
+  },
+  "plugins": {
+    "deep-link": {
+      "desktop": {
+        "schemes": [
+          "yariche"
+        ]
+      }
+    }
+  }
+}
