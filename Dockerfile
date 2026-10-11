@@ -1,5 +1,5 @@
 # --- Build du client (Vite) --------------------------------------------------------
-FROM node:22-trixie-slim AS build
+FROM node:25-trixie-slim AS build
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
@@ -8,7 +8,7 @@ RUN npx vite build
 
 # --- Image finale ---------------------------------------------------------------------
 # Debian 13 : nextcloudcmd 3.16 (le 3.7 de Debian 12 échoue sur l'envoi groupé de fichiers)
-FROM node:22-trixie-slim
+FROM node:25-trixie-slim
 WORKDIR /app
 ENV NODE_ENV=production
 # UTF-8 obligatoire : sinon les noms de fichiers accentués (« Réunion.md ») sont abîmés
