@@ -26,7 +26,7 @@
     "@tiptap/core": "^3.31.3",
     "@tiptap/extension-bubble-menu": "^3.31.3",
     "@tiptap/extension-code-block-lowlight": "^3.31.3",
-    "@tiptap/extension-collaboration": "^3.31.3",
+    "@tiptap/extension-collaboration": "^3.31.4",
     "@tiptap/extension-collaboration-caret": "^3.31.3",
     "@tiptap/extension-hard-break": "^3.31.3",
     "@tiptap/extension-highlight": "^3.31.3",
