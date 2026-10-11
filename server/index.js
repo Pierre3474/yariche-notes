@@ -1320,9 +1320,11 @@ async function main() {
   // Fichiers envoyés par les utilisateurs : jamais exécutés comme une page de l'app (un
   // SVG ouvert directement pourrait sinon lancer du script avec la session de celui qui
   // l'ouvre). Bac à sable CSP + pas de devinette du type.
-  const sandboxFile = (res) => {
-    res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox")
+  // Les PDF gardent la visionneuse du navigateur, qui refuse de s'ouvrir en bac à sable
+  const sandboxFile = (res, filePath = '') => {
     res.setHeader('X-Content-Type-Options', 'nosniff')
+    if (/\.pdf$/i.test(filePath)) return
+    res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox")
   }
   // Fichiers du coffre ouvert servis tels quels : pièces jointes (attachments/, liées en
   // chemin relatif : « ![](attachments/photo.png) » s'affiche aussi dans Obsidian) et
@@ -1332,7 +1334,7 @@ async function main() {
     return (req, res, next) => {
       const dir = path.join(VAULT.dir, sub)
       if (!cache.has(dir))
-        cache.set(dir, express.static(dir, { fallthrough: true, dotfiles: 'ignore', setHeaders: sandboxFile }))
+        cache.set(dir, express.static(dir, { fallthrough: true, dotfiles: 'ignore', setHeaders: (res, filePath) => sandboxFile(res, filePath) }))
       cache.get(dir)(req, res, next)
     }
   }
@@ -1349,9 +1351,7 @@ async function main() {
     if (!found) return res.status(404).json({ error: 'fichier introuvable' })
     if (req.session.user.guest && !guestCanSeeFile(req.session, path.basename(found)))
       return res.status(404).json({ error: 'fichier introuvable' })
-    // (les PDF gardent la visionneuse du navigateur, qui refuse de s'ouvrir en bac à sable)
-    if (!/\.pdf$/i.test(found)) sandboxFile(res)
-    else res.removeHeader('Content-Security-Policy')
+    sandboxFile(res, found)
     res.sendFile(found)
   })
   const upload = multer({
@@ -1362,7 +1362,8 @@ async function main() {
       },
       filename: (req, file, cb) => {
         // Nom lisible comme Obsidian (« image-20260926-153012.png »), sans espace ni caractère spécial
-        const ext = (path.extname(file.originalname) || '.png').toLowerCase().replace(/[^.a-z0-9]/g, '')
+        const isPdf = file.mimetype === 'application/pdf'
+        const ext = isPdf ? '.pdf' : (path.extname(file.originalname) || '.png').toLowerCase().replace(/[^.a-z0-9]/g, '')
         const base = path
           .basename(file.originalname, path.extname(file.originalname))
           .normalize('NFD')
@@ -1378,7 +1379,7 @@ async function main() {
       },
     }),
     limits: { fileSize: 15 * 1024 * 1024 },
-    fileFilter: (req, file, cb) => cb(null, /^image\//.test(file.mimetype)),
+    fileFilter: (req, file, cb) => cb(null, /^image\//.test(file.mimetype) || file.mimetype === 'application/pdf'),
   })
   // Vérifié AVANT l'envoi : multer écrit le fichier sur le disque pendant la réception
   const mayUpload = (req, res, next) => {
@@ -1394,7 +1395,18 @@ async function main() {
     next()
   }
   app.post('/api/doc/:room/upload', mayUpload, upload.single('file'), (req, res) => {
-    if (!req.file) return res.status(400).json({ error: 'image invalide ou trop grosse (max 15 Mo)' })
+    if (!req.file) return res.status(400).json({ error: 'fichier refusé : image ou PDF de 15 Mo maximum' })
+    // Un « PDF » doit commencer par %PDF- : le type annoncé par le navigateur ne suffit pas
+    if (req.file.mimetype === 'application/pdf') {
+      const head = Buffer.alloc(5)
+      const fd = fs.openSync(req.file.path, 'r')
+      fs.readSync(fd, head, 0, 5, 0)
+      fs.closeSync(fd)
+      if (head.toString('latin1') !== '%PDF-') {
+        fs.rmSync(req.file.path, { force: true })
+        return res.status(400).json({ error: 'ce fichier n’est pas un PDF valide' })
+      }
+    }
     // Un invité revoit tout de suite l'image qu'il vient d'envoyer (avant l'enregistrement)
     if (req.session.user.guest)
       req.session.guestUploads = [...(req.session.guestUploads || []), req.file.filename].slice(-50)

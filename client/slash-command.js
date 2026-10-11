@@ -38,7 +38,7 @@ const ITEMS = [
     run: (e, r) => e.chain().focus().deleteRange(r).toggleTaskList().run() },
   { group: 'Style', title: 'Surligné', subtitle: 'Surligner du texte (==texte==).', icon: 'highlight', keywords: 'highlight surligner mark',
     run: (e, r) => e.chain().focus().deleteRange(r).toggleHighlight().run() },
-  { group: 'Contenu', title: 'Image', subtitle: 'Importer une image depuis ton ordinateur.', icon: 'image', keywords: 'image photo upload',
+  { group: 'Contenu', title: 'Image ou PDF', subtitle: 'Importer une image ou un PDF depuis ton ordinateur.', icon: 'image', keywords: 'image photo upload pdf fichier document',
     run: (e, r, o) => {
       e.chain().focus().deleteRange(r).run()
       o.insertImage?.(e)

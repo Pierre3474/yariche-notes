@@ -25,10 +25,32 @@ const CALLOUT_LABEL = {
 }
 const TAG_RE = /(^|\s)(#[\wàâäéèêëïîôöùûüç-]+)/g
 // Image intégrée à la façon d'Obsidian : ![[photo.png]], ![[dossier/photo.png|300]]
-const EMBED_RE = /!\[\[([^\]|#]+?\.(?:png|jpe?g|gif|webp|svg|avif|bmp))(?:\|(\d+)(?:x(\d+))?)?\]\]/gi
-const isImageEmbedAt = (text, index) => text[index - 1] === '!' && /\.(png|jpe?g|gif|webp|svg|avif|bmp)\s*[\]|]/i.test(text.slice(index))
+const EMBED_RE = /!\[\[([^\]|#]+?\.(?:png|jpe?g|gif|webp|svg|avif|bmp|pdf))(?:\|(\d+)(?:x(\d+))?)?\]\]/gi
+const isImageEmbedAt = (text, index) => text[index - 1] === '!' && /\.(png|jpe?g|gif|webp|svg|avif|bmp|pdf)\s*[\]|]/i.test(text.slice(index))
+
+// PDF intégré : carte avec le nom du fichier, ouverte dans le lecteur PDF du navigateur
+function pdfWidget(target) {
+  const name = target.split('/').pop()
+  const params = new URLSearchParams({ name })
+  if (target.includes('/')) params.append('path', target)
+  const card = document.createElement('a')
+  card.className = 'embed-pdf'
+  card.href = `/api/vault-file?${params}`
+  card.target = '_blank'
+  card.rel = 'noopener'
+  card.contentEditable = 'false'
+  const badge = document.createElement('span')
+  badge.className = 'embed-pdf-badge'
+  badge.textContent = 'PDF'
+  const label = document.createElement('span')
+  label.className = 'embed-pdf-name'
+  label.textContent = name
+  card.append(badge, label)
+  return card
+}
 
 function embedWidget(target, width) {
+  if (/\.pdf$/i.test(target)) return pdfWidget(target)
   const img = document.createElement('img')
   img.className = 'embed-image'
   const name = target.split('/').pop()

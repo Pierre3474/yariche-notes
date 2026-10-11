@@ -698,22 +698,30 @@ async function uploadFile(file, room = currentRoom) {
   return (await res.json()).url
 }
 
-// Fonctionne pour l'éditeur principal comme pour ceux des lignes de base
+const isPdf = (file) => file.type === 'application/pdf' || /\.pdf$/i.test(file.name)
+
+// Fonctionne pour l'éditeur principal comme pour ceux des lignes de base.
+// Image : insérée comme image. PDF : insérée comme intégration Obsidian ![[nom.pdf]]
+// (affichée en carte cliquable, le fichier reste dans attachments/).
 async function uploadAndInsertImage(file, ed, pos) {
   try {
     const url = await uploadFile(file)
     if (ed.isDestroyed) return
-    const node = ed.schema.nodes.image.create({ src: url })
-    ed.view.dispatch(ed.state.tr.insert(pos ?? ed.state.selection.from, node))
+    const at = pos ?? ed.state.selection.from
+    if (isPdf(file)) {
+      ed.view.dispatch(ed.state.tr.insertText(`![[${url.split('/').pop()}]]`, at))
+    } else {
+      ed.view.dispatch(ed.state.tr.insert(at, ed.schema.nodes.image.create({ src: url })))
+    }
   } catch (err) {
-    toast(`Image non envoyée : ${err.message}`)
+    toast(`${isPdf(file) ? 'PDF' : 'Image'} non envoyé : ${err.message}`)
   }
 }
 
 function pickImageFor(ed) {
   const input = document.createElement('input')
   input.type = 'file'
-  input.accept = 'image/*'
+  input.accept = 'image/*,application/pdf'
   input.onchange = () => {
     const file = input.files?.[0]
     if (file) uploadAndInsertImage(file, ed)
@@ -839,13 +847,13 @@ const imageEditorProps = (getEd) => ({
   handleDrop: (view, event, slice, moved) => {
     if (moved) return false
     const file = event.dataTransfer?.files?.[0]
-    if (!file || !file.type.startsWith('image/')) return false
+    if (!file || !(file.type.startsWith('image/') || isPdf(file))) return false
     event.preventDefault()
     uploadAndInsertImage(file, getEd(), view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos)
     return true
   },
   handlePaste: (view, event) => {
-    const file = [...(event.clipboardData?.files || [])].find((f) => f.type.startsWith('image/'))
+    const file = [...(event.clipboardData?.files || [])].find((f) => f.type.startsWith('image/') || isPdf(f))
     if (!file) return false
     event.preventDefault()
     uploadAndInsertImage(file, getEd())
