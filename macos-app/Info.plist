@@ -17,7 +17,7 @@
   <key>LSApplicationCategoryType</key>
   <string>public.app-category.productivity</string>
   <key>NSHumanReadableCopyright</key>
-  <string>Yariche — notes Markdown collaboratives (licence MIT)</string>
+  <string>Yariche: notes Markdown collaboratives (licence MIT)</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleExecutable</key>

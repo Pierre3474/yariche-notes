@@ -1,3 +1,12 @@
+// Police Inter hébergée avec l'application (aucune requête vers un service tiers)
+import '@fontsource/inter/latin-400.css'
+import '@fontsource/inter/latin-500.css'
+import '@fontsource/inter/latin-600.css'
+import '@fontsource/inter/latin-700.css'
+import '@fontsource/inter/latin-ext-400.css'
+import '@fontsource/inter/latin-ext-500.css'
+import '@fontsource/inter/latin-ext-600.css'
+import '@fontsource/inter/latin-ext-700.css'
 import { Editor } from '@tiptap/core'
 import { StarterKit } from '@tiptap/starter-kit'
 import { Collaboration } from '@tiptap/extension-collaboration'

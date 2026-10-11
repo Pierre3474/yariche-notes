@@ -21,6 +21,7 @@
     "start": "node server/index.js"
   },
   "dependencies": {
+    "@fontsource/inter": "^5.3.0",
     "@modelcontextprotocol/sdk": "^1.30.1",
     "@tiptap/core": "^3.31.3",
     "@tiptap/extension-bubble-menu": "^3.31.3",
@@ -39,7 +40,7 @@
     "@tiptap/starter-kit": "^3.31.3",
     "@tiptap/suggestion": "^3.31.3",
     "@tiptap/y-tiptap": "^3.0.9",
-    "chokidar": "^3.6.0",
+    "chokidar": "^5.0.0",
     "express": "^4.19.2",
     "express-session": "^1.18.0",
     "highlight.js": "^11.12.0",

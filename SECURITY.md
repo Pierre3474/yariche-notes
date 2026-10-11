@@ -34,6 +34,13 @@ layer below in place. This is how the reference deployment is hardened.
 - Login: a fresh session is issued at every sign-in (no session fixation). Desktop apps sign in
   in the default browser and get back a one-time code (2 min) usable only with a secret kept
   by the app (PKCE-like), so an intercepted `yariche://` link is worthless.
+- Local accounts (`AUTH_MODE=local`): passwords hashed with scrypt and a per-user salt (10
+  characters minimum), checked in constant time even for unknown usernames; 5 failed attempts
+  per username lock it for 15 minutes (40 per IP); forms check the `Origin` header and carry a
+  CSRF token; first-account setup needs `SETUP_CODE` and is closed once an account exists or
+  when an SSO is configured. Sign-out revokes the session even if a parallel request rewrites
+  its file. `Strict-Transport-Security` is sent over HTTPS.
+- Dependencies: `npm audit` runs in CI and Dependabot opens update pull requests weekly.
 - Session cookie `HttpOnly`, `SameSite=Lax`, `Secure` over HTTPS (`TRUST_PROXY=1` behind a
   reverse proxy), sessions saved before every login redirect. Set a long `SESSION_SECRET`.
 

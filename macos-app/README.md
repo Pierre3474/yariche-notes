@@ -1,4 +1,4 @@
-# Yariche.app — client macOS natif
+# Yariche.app, client macOS natif
 
 App AppKit + WKWebView (pas d'Electron, pas de Node) qui affiche un serveur Yariche.
 
@@ -36,7 +36,7 @@ ensuite dans **Yariche → Adresse du serveur…** (⌘,).
 - Liens cliqués dans les notes ouverts dans le navigateur par défaut.
 - **Mode local** (menu **Yariche → Où travailler (serveur ou ce Mac)…**) : Yariche tourne dans
   l'app (Node.js officiel et le serveur embarqués, `Contents/Resources`) et écrit directement
-  dans un dossier du Mac — ton dossier Nextcloud, que le client Nextcloud synchronise. Marche
+  dans un dossier du Mac: ton dossier Nextcloud, que le client Nextcloud synchronise. Marche
   hors connexion. Le serveur n'écoute que sur 127.0.0.1 (port 5178 si libre) et n'ouvre
   qu'avec le secret de ce lancement ; ses données internes (métadonnées, versions,
   commentaires) sont dans `~/Library/Application Support/Yariche/local`, pas dans le dossier

@@ -5,7 +5,7 @@
 <h1 align="center">Yariche</h1>
 
 <p align="center">
-  Self-hosted, real-time collaborative notes with the feel of Notion / AFFiNE,<br />
+  Self-hosted, real-time collaborative notes with a block editor, databases and whiteboards,<br />
   stored as plain Markdown files organised like an Obsidian vault, and synced with Nextcloud.
 </p>
 
@@ -19,7 +19,7 @@
 
 ## Why
 
-Notion and AFFiNE are great editors, but your notes live in their database. Obsidian keeps
+Hosted note apps keep your notes in their own database. Obsidian keeps
 plain files, but real-time collaboration is not its thing. Yariche sits in between:
 
 - **Your files stay yours.** Every page is a real `.md` file in a real folder tree
@@ -38,14 +38,14 @@ plain files, but real-time collaboration is not its thing. Yariche sits in betwe
 - **Obsidian-compatible vault**: folders, sub-pages in a same-name folder, `.trash/`,
   `attachments/`, YAML front matter shown as properties and never rewritten. Opening a note
   does not reformat it. Files added, moved or deleted outside Yariche are picked up live.
-- **Databases** (Notion-like): 12 property types, table / board / list / gallery / calendar
+- **Databases**: 12 property types, table / board / list / gallery / calendar
   views, filters, sorts, calculations, a page per row.
-- **Whiteboards** (AFFiNE Edgeless-like): notes, shapes, text, pen, connectors, images.
+- **Whiteboards**: notes, shapes, text, pen, connectors, images.
 - **Collaboration**: anchored comments, mentions, inbox, sharing (private / link / invited
   people), **team spaces** (a shared folder shares everything inside it, including pages
   created later), guest links without an account (a page or a whole folder), SSO with any
   OpenID Connect provider.
-- **Built-in AI** (any OpenAI-compatible API): Notion-style assistant on the selection or cursor (`⌘J`, `/`, selection menu: improve, fix, shorten, translate, continue…) with a preview before anything is written, plus grey inline completion (Tab to accept).
+- **Built-in AI** (any OpenAI-compatible API): assistant on the selection or cursor (`⌘J`, `/`, selection menu: improve, fix, shorten, translate, continue…) with a preview before anything is written, plus grey inline completion (Tab to accept).
 - **Navigation**: file explorer, quick switcher (⌘O), command palette (⌘P), full-text
   search (⌘⇧F), daily note, trash, vault switcher.
 - **Apps**: installable web app (PWA), a native macOS app (AppKit + WKWebView, with an
@@ -229,6 +229,10 @@ Start with [docs/architecture.md](docs/architecture.md) for a tour of the code.
   time: the open version wins.
 - The interface is French-only for now.
 
-## License
+## License and legal notes
 
-[MIT](LICENSE)
+MIT, see [LICENSE](LICENSE). Dependency licenses are listed in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Yariche is an independent project, not
+affiliated with Notion, Obsidian, AFFiNE or Nextcloud, whose names are trademarks of their
+owners. If you host it for other people, read [LEGAL.md](LEGAL.md) (GDPR, cookies, user
+rights) and adapt [PRIVACY.md](PRIVACY.md). Security policy: [SECURITY.md](SECURITY.md).

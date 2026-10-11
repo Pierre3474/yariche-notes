@@ -745,8 +745,8 @@ async function main() {
     const sockets = host ? ` wss://${host} ws://${host}` : ''
     res.setHeader(
       'Content-Security-Policy',
-      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
-        "font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob:; media-src 'self' blob:; " +
+      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
+        "font-src 'self' data:; img-src 'self' data: blob:; media-src 'self' blob:; " +
         `connect-src 'self'${sockets}; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; ` +
         "base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
     )
@@ -756,6 +756,8 @@ async function main() {
     res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()')
     res.setHeader('Cross-Origin-Opener-Policy', 'same-origin')
     res.setHeader('Cross-Origin-Resource-Policy', 'same-origin')
+    // HTTPS (direct ou derrière un proxy avec TRUST_PROXY) : le navigateur n'ira plus en HTTP
+    if (req.secure) res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
     if (req.path.startsWith('/api/')) res.setHeader('Cache-Control', 'no-store')
     next()
   })

@@ -14,6 +14,7 @@ import {
   MIN_PASSWORD,
 } from './accounts.js'
 import { getSettings, isAdmin, updateSettings } from './settings.js'
+import { listApiTokens, revokeApiToken } from './api-tokens.js'
 
 const env = process.env
 const ALLOW_SIGNUP = /^(1|true|yes)$/i.test(env.ALLOW_SIGNUP || '')
@@ -49,7 +50,7 @@ setInterval(() => {
   for (const [key, entry] of failures) if (Date.now() - entry.since > WINDOW) failures.delete(key)
 }, WINDOW).unref()
 
-export function registerLocalAuth(app, { page, esc, ssoName }) {
+export function registerLocalAuth(app, { page, esc, ssoName, revoke }) {
   const form = express.urlencoded({ extended: false, limit: '4kb' })
 
   // Une requête POST doit venir de la même origine (en plus du cookie SameSite=Lax)
@@ -198,6 +199,16 @@ export function registerLocalAuth(app, { page, esc, ssoName }) {
         ${err(error)}${msg ? `<div class="ok">${esc(msg)}</div>` : ''}
         <button class="sso-btn" type="submit">Changer le mot de passe</button>
       </form>
+      <h2 class="sub">Mes données</h2>
+      <p class="hint">Télécharge les informations de ton compte (identifiant, nom, dates, jetons d’accès). Tes notes sont des fichiers .md : exporte-les depuis le menu de chaque page.</p>
+      <a class="sso-btn" href="/account/export" download="yariche-mon-compte.json">Télécharger mes données</a>
+      ${isAdmin(req.session.user.email, false) ? '' : `<h2 class="sub">Supprimer mon compte</h2>
+      <p class="hint">Supprime ton identifiant, ton mot de passe et tes jetons d’accès. Les notes que tu as créées restent dans le coffre ; demande à un administrateur de les supprimer si besoin.</p>
+      <form method="post" action="/account/delete">
+        <input type="hidden" name="csrf" value="${csrf(req)}" />
+        ${field('confirm', 'Mot de passe pour confirmer', 'password', 'autocomplete="current-password" required')}
+        <button class="mini danger wide-btn" type="submit">Supprimer définitivement mon compte</button>
+      </form>`}
       <p class="foot"><a href="/">Retour aux notes</a>${isAdmin(req.session.user.email, false) ? ' · <a href="/admin/users">Gérer les comptes</a>' : ''}</p>`,
     })
   app.get('/account', needUser, (req, res) => res.send(accountPage(req)))
@@ -214,6 +225,32 @@ export function registerLocalAuth(app, { page, esc, ssoName }) {
     } catch (e) {
       res.status(400).send(accountPage(req, '', e.message))
     }
+  })
+
+  app.get('/account/export', needUser, (req, res) => {
+    const account = findAccount(req.session.user.email)
+    const payload = {
+      exportedAt: new Date().toISOString(),
+      account: account
+        ? { username: account.username, name: account.name, createdAt: account.createdAt && new Date(account.createdAt).toISOString(), lastLoginAt: account.lastLoginAt && new Date(account.lastLoginAt).toISOString() }
+        : { username: req.session.user.email, name: req.session.user.name, note: 'Compte géré par un fournisseur SSO' },
+      accessTokens: listApiTokens(req.session.user.email).map((t) => ({ name: t.name, scope: t.scope, createdAt: t.createdAt && new Date(t.createdAt).toISOString() })),
+    }
+    res.setHeader('Content-Disposition', 'attachment; filename="yariche-mon-compte.json"')
+    res.json(payload)
+  })
+  app.post('/account/delete', needUser, form, async (req, res) => {
+    if (!csrfOk(req)) return res.status(403).send(accountPage(req, '', 'Session expirée, réessaie.'))
+    const me = req.session.user.email
+    if (isAdmin(me, false)) return res.status(400).send(accountPage(req, '', 'Un administrateur supprime son compte en ligne de commande.'))
+    if (!findAccount(me)) return res.status(400).send(accountPage(req, '', 'Ce compte n’utilise pas de mot de passe local.'))
+    if (!(await verifyLogin(me, String(req.body.confirm || ''))))
+      return res.status(401).send(accountPage(req, '', 'Mot de passe incorrect.'))
+    for (const t of listApiTokens(me)) revokeApiToken(me, t.id)
+    removeAccount(me)
+    console.log(`[auth] compte supprimé par son titulaire : ${me}`)
+    revoke(req)
+    req.session.destroy(() => res.redirect('/login'))
   })
 
   const usersPage = (req, msg = '', error = '') => {

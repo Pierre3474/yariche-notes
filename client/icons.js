@@ -1,5 +1,5 @@
-// Icones au trait (tracés Lucide, licence ISC) : AFFiNE et Notion utilisent des
-// pictos monochromes 20px dans la navigation, pas des emojis.
+// Icones au trait : tracés Lucide (licence ISC, voir THIRD_PARTY_NOTICES.md),
+// pictos monochromes 20px dans la navigation.
 const paths = {
   search: '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',

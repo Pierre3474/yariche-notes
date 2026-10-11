@@ -5,7 +5,7 @@
 <h1 align="center">Yariche</h1>
 
 <p align="center">
-  Notes collaboratives en temps réel, auto-hébergées, avec l'ergonomie de Notion / AFFiNE,<br />
+  Notes collaboratives en temps réel, auto-hébergées, avec un éditeur par blocs, des bases de données et des tableaux blancs,<br />
   enregistrées en vrais fichiers Markdown rangés comme un coffre Obsidian, et synchronisées avec Nextcloud.
 </p>
 
@@ -121,6 +121,10 @@ npm test           # tests d'API sur un vrai serveur et un dossier temporaire
 
 Voir [CONTRIBUTING.md](CONTRIBUTING.md) et [docs/architecture.md](docs/architecture.md).
 
-## Licence
+## Licence et mentions légales
 
-[MIT](LICENSE)
+MIT, voir [LICENSE](LICENSE). Les licences des dépendances sont dans
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Yariche est un projet indépendant, sans lien
+avec Notion, Obsidian, AFFiNE ou Nextcloud, dont les noms sont des marques de leurs
+propriétaires. Si tu l'héberges pour d'autres personnes, lis [LEGAL.md](LEGAL.md) (RGPD, cookies,
+droits des utilisateurs) et adapte [PRIVACY.md](PRIVACY.md). Sécurité : [SECURITY.md](SECURITY.md).

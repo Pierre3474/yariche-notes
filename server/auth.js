@@ -67,7 +67,7 @@ const DATA_DIR = path.resolve(env.DATA_DIR || path.join(__dirname, '..', 'data')
 const sessionsDir = path.join(DATA_DIR, '.sessions')
 fs.mkdirSync(sessionsDir, { recursive: true })
 
-export const sessionMiddleware = session({
+const baseSession = session({
   store: new FileStore({ path: sessionsDir, ttl: 60 * 60 * 24 * 30, logFn: () => {} }),
   secret: SESSION_SECRET || 'dev-secret-a-changer-en-prod',
   resave: false,
@@ -76,6 +76,26 @@ export const sessionMiddleware = session({
   // derrière un reverse proxy), utilisable en HTTP sur le réseau local
   cookie: { httpOnly: true, sameSite: 'lax', secure: 'auto', maxAge: 1000 * 60 * 60 * 24 * 30 },
 })
+
+// Déconnexion fiable : le magasin de sessions sur fichier peut réécrire une session que
+// vient de supprimer une requête simultanée (le « touch » d'une autre requête relit puis
+// réécrit le fichier). Les identifiants de session déconnectés sont donc refusés, même si
+// leur fichier réapparaît.
+const revokedSessions = new Map()
+const REVOKED_TTL = 60 * 60_000
+export function revokeSession(req) {
+  const now = Date.now()
+  for (const [sid, exp] of revokedSessions) if (exp <= now) revokedSessions.delete(sid)
+  if (req.sessionID) revokedSessions.set(req.sessionID, now + REVOKED_TTL)
+}
+export const sessionMiddleware = (req, res, next) =>
+  baseSession(req, res, (err) => {
+    if (!err && req.sessionID && revokedSessions.has(req.sessionID)) {
+      req.session.user = undefined
+      req.session.guest = undefined
+    }
+    next(err)
+  })
 
 let oidcClient = null
 
@@ -104,11 +124,14 @@ export function registerAuthRoutes(app) {
   }
 
   // Comptes locaux : /login (formulaire), /setup (premier compte), /account, /admin/users
-  if (LOCAL_LOGIN) registerLocalAuth(app, { page: loginPageHtml, esc: escapeHtml, ssoName: OIDC_ON ? OIDC_PROVIDER_NAME : null })
+  if (LOCAL_LOGIN) registerLocalAuth(app, { page: loginPageHtml, esc: escapeHtml, revoke: revokeSession, ssoName: OIDC_ON ? OIDC_PROVIDER_NAME : null })
   else app.get('/login', (req, res) => res.send(loginPageHtml()))
   if (!OIDC_ON) {
     app.get(['/login/start', '/login/app', '/auth/callback'], (req, res) => res.redirect('/login'))
-    app.get('/logout', (req, res) => req.session.destroy(() => res.redirect('/login')))
+    app.get('/logout', (req, res) => {
+      revokeSession(req)
+      req.session.destroy(() => res.redirect('/login'))
+    })
     return
   }
 
@@ -231,6 +254,7 @@ export function registerAuthRoutes(app) {
   })
 
   app.get('/logout', (req, res) => {
+    revokeSession(req)
     req.session.destroy(() => res.redirect('/'))
   })
 }
@@ -313,6 +337,9 @@ function loginPageHtml({ title = null, text = null, body = null, head = '', wide
     form.inline input { height: 32px; width: 150px; font-size: 13px; }
     .mini { height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); color: var(--text); cursor: pointer; font-size: 13px; }
     .mini.danger { color: #e5484d; }
+    .wide-btn { width: 100%; height: 40px; }
+    h2.sub { font-size: 15px; margin: 26px 0 6px; text-align: left; }
+    .hint { font-size: 13px; text-align: left; margin: 0 0 12px; }
     form.add { margin-top: 20px; } form.add h2 { font-size: 15px; margin: 0 0 4px; }
   </style>
 </head>
