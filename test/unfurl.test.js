@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { isPublicAddress, checkUrl, parseMetadata, unfurl } from '../server/unfurl.js'
+import { isPublicAddress, isAllowedPrivateHost, checkUrl, parseMetadata, unfurl } from '../server/unfurl.js'
 
 test('aperçu de lien : adresses privées refusées', () => {
   for (const a of ['127.0.0.1', '10.0.20.1', '192.168.1.10', '172.16.5.4', '169.254.169.254', '100.64.0.5', '0.0.0.0', '::1', 'fe80::1', 'fd00::1', '::ffff:10.0.0.1'])
@@ -33,4 +33,22 @@ test('aperçu de lien : lecture Open Graph', () => {
   assert.equal(parseMetadata('<title>Seul</title>', 'https://a.example/').title, 'Seul')
   // Pas de javascript: en image
   assert.equal(parseMetadata('<meta property="og:image" content="javascript:alert(1)">', 'https://a.example/').image, '')
+})
+
+test('aperçu de lien : hôtes internes autorisés par l’administrateur', async () => {
+  const list = '*.exemple.fr, wiki.lan'
+  assert.ok(isAllowedPrivateHost('docs.exemple.fr', list))
+  assert.ok(isAllowedPrivateHost('a.b.exemple.fr', list))
+  assert.ok(isAllowedPrivateHost('wiki.lan', list))
+  assert.ok(!isAllowedPrivateHost('exemple.fr.evil.com', list))
+  assert.ok(!isAllowedPrivateHost('evilexemple.fr', list))
+  assert.ok(!isAllowedPrivateHost('autre.lan', list))
+  assert.ok(!isAllowedPrivateHost('docs.exemple.fr', ''))
+  // Même autorisé, localhost (boucle locale) reste refusé
+  process.env.UNFURL_ALLOW_HOSTS = 'localhost'
+  try {
+    await assert.rejects(unfurl('http://localhost/'), /privée/)
+  } finally {
+    delete process.env.UNFURL_ALLOW_HOSTS
+  }
 })

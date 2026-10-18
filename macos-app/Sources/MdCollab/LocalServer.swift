@@ -64,14 +64,15 @@ final class LocalServer {
         p.executableURL = node
         p.arguments = [app.appendingPathComponent("server/index.js").path]
         p.currentDirectoryURL = app
-        // Assistant IA : LLM_BASE_URL, LLM_MODEL, LLM_API_KEY dans <support>/ai.env (KEY=VALEUR)
+        // Réglages dans <support>/ai.env (KEY=VALEUR) : assistant IA (LLM_BASE_URL, LLM_MODEL,
+        // LLM_API_KEY) et sites internes acceptés pour l'aperçu des signets (UNFURL_ALLOW_HOSTS)
         var llmEnv: [String: String] = [:]
         if let raw = try? String(contentsOf: support.appendingPathComponent("ai.env"), encoding: .utf8) {
             for line in raw.split(whereSeparator: \.isNewline) {
                 let t = line.trimmingCharacters(in: .whitespaces)
                 guard !t.hasPrefix("#"), let eq = t.firstIndex(of: "=") else { continue }
                 let k = String(t[..<eq]).trimmingCharacters(in: .whitespaces)
-                if k.hasPrefix("LLM_") { llmEnv[k] = String(t[t.index(after: eq)...]).trimmingCharacters(in: .whitespaces) }
+                if k.hasPrefix("LLM_") || k == "UNFURL_ALLOW_HOSTS" { llmEnv[k] = String(t[t.index(after: eq)...]).trimmingCharacters(in: .whitespaces) }
             }
         }
         p.environment = llmEnv.merging([

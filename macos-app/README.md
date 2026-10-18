@@ -42,6 +42,9 @@ ensuite dans **Yariche → Adresse du serveur…** (⌘,).
   commentaires) sont dans `~/Library/Application Support/Yariche/local`, pas dans le dossier
   synchronisé. Journal : `~/Library/Logs/Yariche/local-server.log`. Limite : commentaires,
   partages et historique sont propres à ce Mac (les notes, elles, sont les mêmes partout).
+  Réglages du serveur local dans `~/Library/Application Support/Yariche/local/ai.env`
+  (`CLÉ=valeur`) : assistant IA (`LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY`) et sites internes
+  acceptés pour l'aperçu des signets (`UNFURL_ALLOW_HOSTS=*.exemple.fr`).
   `YARICHE_LOCAL=0 ./build-app.sh` : app sans mode local (5 Mo au lieu de ~200 Mo).
 - Badge du Dock = notifications non lues.
 - Page d'erreur avec « Réessayer » et « Changer d'adresse… » si le serveur est injoignable.

@@ -185,6 +185,78 @@ function chevronWidget(pos, folded) {
 
 const foldKey = new PluginKey('calloutFold')
 
+// --- Glisser un bloc sur le bord d'un autre : colonnes (comme Notion) ---------------
+// Bord droit (dernier quart) ou bord gauche (30 px) d'un bloc de premier niveau. Sur un
+// groupe de colonnes : une colonne de plus de ce côté, toutes égales.
+function dropTarget(view, event) {
+  const dragging = view.dragging
+  if (!dragging?.move || !dragging.slice || dragging.slice.content.childCount !== 1 || dragging.slice.openStart) return null
+  const moved = dragging.slice.content.firstChild
+  if (!moved.isBlock || isColumns(moved)) return null
+  const hit = view.posAtCoords({ left: event.clientX, top: event.clientY })
+  if (!hit) return null
+  const $pos = view.state.doc.resolve(hit.inside >= 0 ? hit.inside : hit.pos)
+  if ($pos.depth < 1) return null
+  const pos = $pos.before(1)
+  const node = view.state.doc.nodeAt(pos)
+  const dom = view.nodeDOM(pos)
+  if (!node || !(dom instanceof HTMLElement)) return null
+  const { selection } = view.state
+  if (selection.from === pos) return null // sur lui-même
+  const r = dom.getBoundingClientRect()
+  let side = null
+  if (event.clientX >= r.right - Math.min(120, r.width / 4) && event.clientX <= r.right + 60) side = 'right'
+  else if (event.clientX <= r.left + 30 && event.clientX >= r.left - 60) side = 'left'
+  if (!side) return null
+  return { pos, node, moved, side, rect: r }
+}
+
+let dropLine = null
+function showDropLine(target) {
+  if (!target) {
+    dropLine?.remove()
+    dropLine = null
+    return
+  }
+  if (!dropLine) {
+    dropLine = document.createElement('div')
+    dropLine.className = 'col-drop-line'
+    document.body.appendChild(dropLine)
+  }
+  const { rect, side } = target
+  dropLine.style.top = `${rect.top}px`
+  dropLine.style.height = `${rect.height}px`
+  dropLine.style.left = `${side === 'right' ? rect.right + 4 : rect.left - 8}px`
+}
+
+export function dropIntoColumns(view, target) {
+  const { state } = view
+  const { schema } = state
+  const para = (text) => schema.nodes.paragraph.create(null, text ? schema.text(text) : null)
+  const column = (content) => schema.nodes.blockquote.create(null, [para('[!column]'), content])
+  const source = state.selection
+  let group
+  if (isColumns(target.node)) {
+    const children = []
+    target.node.forEach((child) => children.push(child))
+    const added = column(target.moved)
+    // Après le dernier enfant ou juste après la ligne [!columns]
+    const at = target.side === 'right' ? children.length : children.findIndex((c) => isColumn(c))
+    children.splice(at < 0 ? children.length : at, 0, added)
+    group = schema.nodes.blockquote.create(null, children)
+  } else {
+    const pair = target.side === 'right' ? [column(target.node), column(target.moved)] : [column(target.moved), column(target.node)]
+    group = schema.nodes.blockquote.create(null, [para('[!columns]'), ...pair])
+  }
+  const tr = state.tr.replaceWith(target.pos, target.pos + target.node.nodeSize, group)
+  // Une colonne de plus : parts remises à égalité
+  if (isColumns(target.node)) setColumnRatios(tr, columnsOf(tr.doc.nodeAt(target.pos), target.pos), null)
+  tr.delete(tr.mapping.map(source.from), tr.mapping.map(source.to))
+  view.dispatch(tr.scrollIntoView())
+  view.dragging = null
+  return true
+}
+
 function buildDecorations(doc, inverted) {
   const decorations = []
   doc.descendants((node, pos) => {
@@ -284,6 +356,25 @@ export const CalloutBlocks = Extension.create({
         },
         props: {
           decorations: (state) => foldKey.getState(state).decorations,
+          handleDrop(view, event) {
+            const target = dropTarget(view, event)
+            showDropLine(null)
+            return target ? dropIntoColumns(view, target) : false
+          },
+          handleDOMEvents: {
+            dragover(view, event) {
+              showDropLine(dropTarget(view, event))
+              return false
+            },
+            dragleave(view, event) {
+              if (!view.dom.contains(event.relatedTarget)) showDropLine(null)
+              return false
+            },
+            dragend() {
+              showDropLine(null)
+              return false
+            },
+          },
           // Texte tapé juste après un marqueur de colonne seul : saut de ligne d'abord,
           // pour écrire « [!column]\nTexte » (et non « [!column]Texte », un titre pour Obsidian)
           handleTextInput(view, from, to, text) {

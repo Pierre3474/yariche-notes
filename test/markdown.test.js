@@ -79,3 +79,26 @@ test('signets : bloc embed conservé et lu', async () => {
   assert.equal(data.url, 'https://a.example/')
   assert.equal(embedText(data), md.split('\n').slice(1, -1).join('\n'))
 })
+
+test('colonnes : bloc glissé sur le bord d’un autre', async () => {
+  const { NodeSelection } = await import('@tiptap/pm/state')
+  const { dropIntoColumns } = await import('../client/callout-blocks.js')
+  const drop = (md, side, fromIndex, toIndex) =>
+    withEditor(md, (editor) => {
+      const { doc } = editor.state
+      const posOf = (i) => {
+        let pos = 0
+        for (let k = 0; k < i; k++) pos += doc.child(k).nodeSize
+        return pos
+      }
+      const from = posOf(fromIndex)
+      editor.view.dispatch(editor.state.tr.setSelection(NodeSelection.create(doc, from)))
+      dropIntoColumns(editor.view, { pos: posOf(toIndex), node: doc.child(toIndex), moved: doc.child(fromIndex), side })
+      return editor.storage.markdown.getMarkdown()
+    })
+  assert.equal(drop('Gauche\n\nDroite', 'right', 1, 0), '> [!columns]\n>\n> > [!column]\n> >\n> > Gauche\n>\n> > [!column]\n> >\n> > Droite')
+  assert.equal(drop('A\n\nB', 'left', 0, 1), '> [!columns]\n>\n> > [!column]\n> >\n> > A\n>\n> > [!column]\n> >\n> > B')
+  // Troisième colonne : parts remises à égalité
+  const three = drop('> [!columns]\n>\n> > [!column|30]\n> > Un\n>\n> > [!column|70]\n> > Deux\n\nTrois', 'right', 1, 0)
+  assert.equal(three, '> [!columns]\n>\n> > [!column]\n> > Un\n>\n> > [!column]\n> > Deux\n>\n> > [!column]\n> >\n> > Trois')
+})

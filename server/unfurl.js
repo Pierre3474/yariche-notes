@@ -37,6 +37,29 @@ export function isPublicAddress(address) {
   return !blockList.check(address, family === 6 ? 'ipv6' : 'ipv4')
 }
 
+// Toujours refusées, même pour un hôte autorisé : boucle locale, lien local (métadonnées
+// cloud 169.254.169.254), adresse nulle
+const ALWAYS_BLOCKED = new net.BlockList()
+for (const [addr, prefix] of [['0.0.0.0', 8], ['127.0.0.0', 8], ['169.254.0.0', 16]]) ALWAYS_BLOCKED.addSubnet(addr, prefix, 'ipv4')
+for (const [addr, prefix] of [['::', 128], ['::1', 128], ['fe80::', 10]]) ALWAYS_BLOCKED.addSubnet(addr, prefix, 'ipv6')
+const alwaysBlocked = (address) => {
+  const mapped = String(address).match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i)
+  const a = mapped ? mapped[1] : address
+  const family = net.isIP(a)
+  return !family || ALWAYS_BLOCKED.check(a, family === 6 ? 'ipv6' : 'ipv4')
+}
+
+// UNFURL_ALLOW_HOSTS=*.exemple.fr,wiki.lan : hôtes du réseau privé dont l'administrateur
+// accepte l'aperçu (sites internes). Nom exact, ou « *. » pour tous les sous-domaines.
+export function isAllowedPrivateHost(hostname, list = process.env.UNFURL_ALLOW_HOSTS || '') {
+  const host = String(hostname).toLowerCase().replace(/\.$/, '')
+  return list
+    .split(',')
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean)
+    .some((rule) => (rule.startsWith('*.') ? host.endsWith(rule.slice(1)) && host.length > rule.length - 1 : host === rule))
+}
+
 export class UnfurlError extends Error {}
 
 // URL acceptée : http(s), ports web standard, pas d'identifiants dans l'adresse
@@ -56,7 +79,8 @@ export function checkUrl(raw) {
 async function publicAddressOf(hostname) {
   const host = hostname.replace(/^\[|\]$/g, '')
   const records = net.isIP(host) ? [{ address: host, family: net.isIP(host) }] : await dns.lookup(host, { all: true, verbatim: true })
-  if (!records.length || !records.every((r) => isPublicAddress(r.address)))
+  const allowed = isAllowedPrivateHost(host)
+  if (!records.length || !records.every((r) => (allowed ? !alwaysBlocked(r.address) : isPublicAddress(r.address))))
     throw new UnfurlError('adresse privée ou réservée refusée')
   return records[0]
 }

@@ -70,7 +70,9 @@ favicon: "https://example.com/favicon.ico"
 
 This is the format of the Obsidian "Link Embed" plugin. The server fetches the preview
 (`/api/unfurl`) when the bookmark is created. It refuses private, local and reserved
-addresses, including after a redirect, and only uses ports 80, 443, 8080 and 8443. Preview
+addresses, including after a redirect, and only uses ports 80, 443, 8080 and 8443. For
+internal sites, the administrator can allow host names with `UNFURL_ALLOW_HOSTS`
+(`*.example.org,wiki.lan`); loopback and link-local addresses stay refused. Preview
 images go through the server (`/api/unfurl/image`): the browser never contacts the site.
 
 ## Attachments

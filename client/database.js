@@ -297,6 +297,13 @@ export function mountDatabase(ydoc, opts) {
     for (const id of rows.keys()) if (!ids.includes(id)) ids.push(id)
     return { schema, rows, order: ids, title, ok: true }
   }
+  // Bases liées relues toutes les 30 s (onglet visible) et au retour sur l'onglet
+  const refreshTargets = () => {
+    if (document.visibilityState !== 'visible') return
+    for (const target of targets.keys()) loadTarget(target, { force: true })
+  }
+  const targetTimer = setInterval(refreshTargets, 30000)
+  document.addEventListener('visibilitychange', refreshTargets)
   const relationIds = (p, row) => (Array.isArray(row?.[p.id]) ? row[p.id] : [])
   function relatedRows(p, row) {
     const base = relatedBase(p.target)
@@ -2682,6 +2689,8 @@ export function mountDatabase(ydoc, opts) {
     },
     destroy() {
       destroyed = true
+      clearInterval(targetTimer)
+      document.removeEventListener('visibilitychange', refreshTargets)
       root.unobserveDeep(onDeepChange)
       undo.destroy()
       closePopover({ commit: true })

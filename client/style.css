@@ -3225,3 +3225,4 @@ body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-sel
 .db-rel span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .db-rel:hover { background: var(--hover-strong); }
 .db-rel-editor .db-rel { text-decoration: none; cursor: inherit; }
+.col-drop-line { position: fixed; z-index: 900; width: 4px; border-radius: 2px; background: var(--primary); opacity: 0.7; pointer-events: none; }

@@ -112,7 +112,8 @@ export const SlashCommand = Extension.create({
         pluginKey: new PluginKey('slashSuggestion'),
         editor: this.editor,
         char: '/',
-        allowSpaces: false,
+        // Espaces permis comme Notion (« /2 col ») : le menu se ferme dès que rien ne correspond
+        allowSpaces: true,
         allowedPrefixes: null,
         startOfLine: false,
         allow: notInCode,
