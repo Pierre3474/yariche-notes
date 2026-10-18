@@ -8,6 +8,7 @@ installed in production (`npm ci --omit=dev`) and the client bundle; it was gene
 ## Embedded assets
 
 - **Lucide icons** (stroke paths in `client/icons.js`): ISC license, Copyright (c) for Lucide Contributors, and portions Copyright (c) 2013-2022 Cole Bemis (MIT, Feather). https://lucide.dev/license
+- **KaTeX fonts** (via `katex`, equations): MIT license, Copyright (c) 2013-2020 Khan Academy and other contributors. https://github.com/KaTeX/KaTeX
 - **Inter** typeface (via `@fontsource/inter`): SIL Open Font License 1.1, Copyright (c) 2016 The Inter Project Authors. https://github.com/rsms/inter
 - **Yariche logo and icons** (`branding/`, `client/public/`): created for this project, covered by the MIT license.
 
@@ -85,6 +86,7 @@ installed in production (`npm ci --omit=dev`) and the client bundle; it was gene
 | call-bind-apply-helpers | 1.0.2 | MIT | https://github.com/ljharb/call-bind-apply-helpers |
 | call-bound | 1.0.4 | MIT | https://github.com/ljharb/call-bound |
 | chokidar | 5.0.0 | MIT | https://github.com/paulmillr/chokidar |
+| commander | 15.0.0 | MIT | https://github.com/tj/commander.js |
 | concat-stream | 1.6.2 | MIT | https://github.com/maxogden/concat-stream |
 | content-disposition | 0.5.4 | MIT | https://github.com/jshttp/content-disposition |
 | content-disposition | 1.1.0 | MIT | https://github.com/jshttp/content-disposition |
@@ -157,6 +159,7 @@ installed in production (`npm ci --omit=dev`) and the client bundle; it was gene
 | json-schema-traverse | 1.0.0 | MIT | https://github.com/epoberezkin/json-schema-traverse |
 | json-schema-typed | 8.0.2 | BSD-2-Clause | https://github.com/RemyRylan/json-schema-typed |
 | jsonfile | 4.0.0 | MIT | https://github.com/jprichardson/node-jsonfile |
+| katex | 0.19.0 | MIT | https://github.com/KaTeX/KaTeX |
 | kruptein | 2.2.3 | MIT | https://github.com/jas-/kruptein |
 | level-codec | 9.0.2 | MIT | https://github.com/Level/codec |
 | level-concat-iterator | 2.0.1 | MIT | https://github.com/Level/concat-iterator |

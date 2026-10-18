@@ -2,6 +2,8 @@ import express from 'express'
 import http from 'http'
 import { WebSocketServer } from 'ws'
 import { setupWSConnection, docs as liveDocs } from 'y-websocket/bin/utils'
+import { unfurl, fetchPreviewImage, UnfurlError } from './unfurl.js'
+import { validateOps, applyRelationOps, retargetRelations } from './db-relations.js'
 import * as decoding from 'lib0/decoding'
 import chokidar from 'chokidar'
 import fs from 'fs'
@@ -527,6 +529,30 @@ function rewriteLinksAfterMove(pairs, linkTextsBefore, session) {
     if (touched) updated.push(source)
   }
   return updated
+}
+// Relations entre bases : celles qui visaient une base déplacée ou renommée visent son
+// nouveau chemin (fichier .db.json et document Yjs vivant)
+function retargetRelationsAfterMove(pairs) {
+  const newIdOf = new Map(pairs)
+  const rename = (target) => newIdOf.get(target) || null
+  for (const [room, m] of allMetaEntries()) {
+    if (m.type !== 'database') continue
+    const p = sideFile(room, '.db.json')
+    try {
+      const json = fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : null
+      if (json && retargetRelations(json, rename)) writeFileEnsured(p, JSON.stringify(json))
+    } catch {
+      /* base illisible : laissée telle quelle */
+    }
+    const schema = liveDocs.get(room)?.getMap('database').get('schema')
+    if (schema && typeof schema.toJSON === 'function') {
+      const json = { schema: schema.toJSON() }
+      if (retargetRelations(json, rename))
+        liveDocs.get(room).transact(() => {
+          for (const [id, prop] of Object.entries(json.schema)) if (schema.get(id)?.target !== prop.target) schema.set(id, prop)
+        }, 'server-relation')
+    }
+  }
 }
 // Relevé avant déplacement : pour chaque élément du sous-arbre, les liens qui le visent
 function linkTextsForSubtree(id) {
@@ -1072,6 +1098,29 @@ async function main() {
     res.json({ ok: true })
   })
 
+  // Relation dans les deux sens : report du lien dans la base liée (voir db-relations.js)
+  app.post('/api/doc/:room/db/relation', (req, res) => {
+    const room = req.params.room
+    if (!canEdit(roleOf(req, room))) return res.status(403).json({ error: 'acces refuse' })
+    if (getDocMeta(room)?.type !== 'database') return res.status(404).json({ error: 'base introuvable' })
+    const ops = validateOps(req.body?.ops)
+    if (!ops) return res.status(400).json({ error: 'opérations invalides' })
+    try {
+      const json = applyRelationOps({
+        ops,
+        liveDoc: liveDocs.get(room),
+        readJSON: () => {
+          const p = dbPath(room)
+          return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, 'utf8')) : null
+        },
+        writeJSON: (value) => writeFileEnsured(dbPath(room), JSON.stringify(value)),
+      })
+      res.json({ ok: true, changed: !!json })
+    } catch (err) {
+      res.status(err.status || 500).json({ error: err.status ? err.message : 'échec' })
+    }
+  })
+
   app.post('/api/doc/:room/appearance', (req, res) => {
     const room = req.params.room
     const role = roleOf(req, room)
@@ -1147,6 +1196,7 @@ async function main() {
     const pairs = moveNode(from, to)
     // Invité : ce qu'il a créé suit son nouveau nom (il peut toujours le renommer)
     if (session.guestCreated) session.guestCreated = session.guestCreated.map((id) => pairs.find(([a]) => a === id)?.[1] || id)
+    retargetRelationsAfterMove(pairs)
     return rewriteLinksAfterMove(pairs, withTargets(before, pairs), session)
   }
   // --- IA (MCP) : ce que les outils peuvent faire, au nom du propriétaire du jeton --------
@@ -1321,8 +1371,12 @@ async function main() {
   // SVG ouvert directement pourrait sinon lancer du script avec la session de celui qui
   // l'ouvre). Bac à sable CSP + pas de devinette du type.
   // Les PDF gardent la visionneuse du navigateur, qui refuse de s'ouvrir en bac à sable
+  // Autres pièces jointes (documents, archives, HTML…) : toujours téléchargées, jamais affichées
+  const INLINE_FILE = /\.(pdf|png|jpe?g|gif|webp|svg|avif|bmp|ico|mp3|m4a|ogg|wav|mp4|webm|mov|txt|md)$/i
   const sandboxFile = (res, filePath = '') => {
     res.setHeader('X-Content-Type-Options', 'nosniff')
+    if (filePath && !INLINE_FILE.test(filePath))
+      res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(path.basename(filePath))}`)
     if (/\.pdf$/i.test(filePath)) return
     res.setHeader('Content-Security-Policy', "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox")
   }
@@ -1354,6 +1408,37 @@ async function main() {
     sandboxFile(res, found)
     res.sendFile(found)
   })
+  // Signets : aperçu d'un lien (titre, description, image) et ses images, par le serveur
+  // (garde anti-SSRF dans unfurl.js). 30 aperçus par minute et par compte au plus.
+  const unfurlHits = new Map()
+  const unfurlAllowed = (who) => {
+    const now = Date.now()
+    const hits = (unfurlHits.get(who) || []).filter((t) => now - t < 60000)
+    if (hits.length >= 30) return false
+    hits.push(now)
+    unfurlHits.set(who, hits)
+    return true
+  }
+  app.get('/api/unfurl', async (req, res) => {
+    if (req.session.user.guest) return res.status(403).json({ error: 'acces refuse' })
+    if (!unfurlAllowed(req.session.user.email)) return res.status(429).json({ error: 'trop de demandes, réessaie dans une minute' })
+    try {
+      res.json(await unfurl(req.query.url))
+    } catch (err) {
+      res.status(err instanceof UnfurlError ? 400 : 502).json({ error: err instanceof UnfurlError ? err.message : 'page injoignable' })
+    }
+  })
+  app.get('/api/unfurl/image', async (req, res) => {
+    try {
+      const { type, body } = await fetchPreviewImage(req.query.url)
+      sandboxFile(res)
+      res.setHeader('Content-Type', type)
+      res.setHeader('Cache-Control', 'private, max-age=86400')
+      res.send(body)
+    } catch {
+      res.status(404).end()
+    }
+  })
   const upload = multer({
     storage: multer.diskStorage({
       destination: (req, file, cb) => {
@@ -1363,14 +1448,15 @@ async function main() {
       filename: (req, file, cb) => {
         // Nom lisible comme Obsidian (« image-20260926-153012.png »), sans espace ni caractère spécial
         const isPdf = file.mimetype === 'application/pdf'
-        const ext = isPdf ? '.pdf' : (path.extname(file.originalname) || '.png').toLowerCase().replace(/[^.a-z0-9]/g, '')
+        const fallback = /^image\//.test(file.mimetype) ? '.png' : '.bin'
+        const ext = isPdf ? '.pdf' : (path.extname(file.originalname) || fallback).toLowerCase().replace(/[^.a-z0-9]/g, '').slice(0, 12) || fallback
         const base = path
           .basename(file.originalname, path.extname(file.originalname))
           .normalize('NFD')
           .replace(/[\u0300-\u036f]/g, '')
           .replace(/[^a-zA-Z0-9_-]+/g, '-')
           .replace(/^-+|-+$/g, '')
-          .slice(0, 60) || 'image'
+          .slice(0, 60) || (/^image\//.test(file.mimetype) ? 'image' : 'fichier')
         const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)
         let name = `${base}-${stamp}${ext}`
         let n = 2
@@ -1378,8 +1464,8 @@ async function main() {
         cb(null, name)
       },
     }),
-    limits: { fileSize: 15 * 1024 * 1024 },
-    fileFilter: (req, file, cb) => cb(null, /^image\//.test(file.mimetype) || file.mimetype === 'application/pdf'),
+    // Tout type de fichier (pièces jointes façon Notion) ; servis en téléchargement, en bac à sable
+    limits: { fileSize: 25 * 1024 * 1024 },
   })
   // Vérifié AVANT l'envoi : multer écrit le fichier sur le disque pendant la réception
   const mayUpload = (req, res, next) => {
@@ -1395,9 +1481,10 @@ async function main() {
     next()
   }
   app.post('/api/doc/:room/upload', mayUpload, upload.single('file'), (req, res) => {
-    if (!req.file) return res.status(400).json({ error: 'fichier refusé : image ou PDF de 15 Mo maximum' })
+    if (!req.file) return res.status(400).json({ error: 'fichier refusé (25 Mo maximum)' })
     // Un « PDF » doit commencer par %PDF- : le type annoncé par le navigateur ne suffit pas
-    if (req.file.mimetype === 'application/pdf') {
+    // (aussi pour un « .pdf » annoncé sous un autre type : il serait servi hors bac à sable)
+    if (req.file.mimetype === 'application/pdf' || /\.pdf$/i.test(req.file.filename)) {
       const head = Buffer.alloc(5)
       const fd = fs.openSync(req.file.path, 'r')
       fs.readSync(fd, head, 0, 5, 0)

@@ -33,13 +33,17 @@ plain files, but real-time collaboration is not its thing. Yariche sits in betwe
 ## Features
 
 - **Editor**: `/` command menu, `@` mentions, `[[wikilinks]]` with backlinks and graph view,
-  `#tags`, callouts `> [!note]`, `==highlight==`, tables, task lists, syntax-highlighted code
-  blocks, images (`![[photo.png]]` embeds included), version history, reading mode.
+  `#tags`, callouts `> [!note]` (foldable with `-` / `+`), toggle blocks, columns with
+  resizable widths, equations (`$…$` and `$$…$$`, KaTeX), link previews (bookmarks),
+  file attachments, `==highlight==`, tables, task lists, headings 1 to 4, syntax-highlighted
+  code blocks, images (`![[photo.png]]` embeds included), version history, reading mode.
+  Every block stays plain Obsidian-compatible Markdown (see [block syntax](docs/blocks.md)).
 - **Obsidian-compatible vault**: folders, sub-pages in a same-name folder, `.trash/`,
   `attachments/`, YAML front matter shown as properties and never rewritten. Opening a note
   does not reformat it. Files added, moved or deleted outside Yariche are picked up live.
-- **Databases**: 12 property types, table / board / list / gallery / calendar
-  views, filters, sorts, calculations, a page per row.
+- **Databases**: 14 property types including relations between databases (one way or
+  both ways) and rollups, table / board / list / gallery / calendar views, filters, sorts,
+  calculations, a page per row.
 - **Whiteboards**: notes, shapes, text, pen, connectors, images.
 - **Collaboration**: anchored comments, mentions, inbox, sharing (private / link / invited
   people), **team spaces** (a shared folder shares everything inside it, including pages

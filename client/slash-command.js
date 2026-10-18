@@ -22,12 +22,16 @@ const ITEMS = [
     run: (e, r) => e.chain().focus().deleteRange(r).setNode('heading', { level: 2 }).run() },
   { group: 'Basique', title: 'Titre 3', subtitle: 'Petit titre de section.', glyph: 'H3', keywords: 'h3 heading',
     run: (e, r) => e.chain().focus().deleteRange(r).setNode('heading', { level: 3 }).run() },
+  { group: 'Basique', title: 'Titre 4', subtitle: 'Titre de plus petite taille.', glyph: 'H4', keywords: 'h4 heading',
+    run: (e, r) => e.chain().focus().deleteRange(r).setNode('heading', { level: 4 }).run() },
   { group: 'Basique', title: 'Page', subtitle: 'Sous-page liée à celle-ci.', icon: 'page', keywords: 'page sous-page subpage',
     run: (e, r, o) => o.createSubpage?.(e, r, 'doc') },
   { group: 'Basique', title: 'Citation', subtitle: 'Mettre un passage en exergue.', icon: 'quote', keywords: 'quote blockquote',
     run: (e, r) => e.chain().focus().deleteRange(r).toggleBlockquote().run() },
   { group: 'Basique', title: 'Encadré', subtitle: 'Faire ressortir une information (callout).', icon: 'callout', keywords: 'callout encadre note info',
     run: (e, r) => e.chain().focus().deleteRange(r).setParagraph().toggleBlockquote().insertContent('[!note] ').run() },
+  { group: 'Basique', title: 'Bloc dépliant', subtitle: 'Masquer du contenu sous un titre (toggle).', icon: 'chevron', keywords: 'toggle depliant replier masquer details',
+    run: (e, r) => e.chain().focus().deleteRange(r).insertToggle().run() },
   { group: 'Basique', title: 'Bloc de code', subtitle: 'Extrait de code avec police à chasse fixe.', icon: 'code', keywords: 'code pre',
     run: (e, r) => e.chain().focus().deleteRange(r).toggleCodeBlock({ language: lastCodeLanguage() }).run() },
   { group: 'Listes', title: 'Liste à puces', subtitle: 'Liste simple non ordonnée.', icon: 'bullets', keywords: 'bullet ul',
@@ -43,6 +47,26 @@ const ITEMS = [
       e.chain().focus().deleteRange(r).run()
       o.insertImage?.(e)
     } },
+  { group: 'Contenu', title: 'Fichier', subtitle: 'Joindre un document, une archive… (25 Mo max).', icon: 'attach', keywords: 'fichier file piece jointe document upload telecharger',
+    run: (e, r, o) => {
+      e.chain().focus().deleteRange(r).run()
+      o.insertFile?.(e)
+    } },
+  { group: 'Contenu', title: 'Signet', subtitle: 'Aperçu d’un lien web (titre, image, description).', icon: 'bookmark', keywords: 'bookmark signet lien url apercu web embed',
+    run: (e, r, o) => {
+      e.chain().focus().deleteRange(r).run()
+      o.insertBookmark?.(e)
+    } },
+  { group: 'Contenu', title: 'Équation', subtitle: 'Formule mathématique en bloc (LaTeX, KaTeX).', icon: 'math', keywords: 'equation math latex katex formule tex',
+    run: (e, r) => e.chain().focus().deleteRange(r).insertMathBlock().run() },
+  { group: 'Contenu', title: 'Équation en ligne', subtitle: 'Formule dans la phrase ($x^2$).', icon: 'math', keywords: 'equation inline math latex formule ligne',
+    run: (e, r) => e.chain().focus().deleteRange(r).insertMathInline().run() },
+  { group: 'Mise en page', title: '2 colonnes', subtitle: 'Deux colonnes côte à côte.', icon: 'columns', keywords: 'colonnes columns cote layout mise en page 2',
+    run: (e, r) => e.chain().focus().deleteRange(r).insertColumns(2).run() },
+  { group: 'Mise en page', title: '3 colonnes', subtitle: 'Trois colonnes côte à côte.', icon: 'columns', keywords: 'colonnes columns layout 3',
+    run: (e, r) => e.chain().focus().deleteRange(r).insertColumns(3).run() },
+  { group: 'Mise en page', title: '4 colonnes', subtitle: 'Quatre colonnes côte à côte.', icon: 'columns', keywords: 'colonnes columns layout 4',
+    run: (e, r) => e.chain().focus().deleteRange(r).insertColumns(4).run() },
   { group: 'Contenu', title: 'Tableau', subtitle: 'Tableau markdown 3 × 3.', icon: 'table', keywords: 'table tableau grid',
     run: (e, r) => e.chain().focus().deleteRange(r).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },
   { group: 'Contenu', title: 'Séparateur', subtitle: 'Ligne de séparation horizontale.', icon: 'divider', keywords: 'divider hr ligne',

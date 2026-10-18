@@ -7,6 +7,7 @@ import dockerfile from 'highlight.js/lib/languages/dockerfile'
 import nginx from 'highlight.js/lib/languages/nginx'
 import powershell from 'highlight.js/lib/languages/powershell'
 import { icon } from './icons.js'
+import { EMBED_LANGUAGE, parseEmbed, renderBookmarkCard, promptUrl, embedText } from './bookmark.js'
 
 export const lowlight = createLowlight(common)
 lowlight.register({ dockerfile, nginx, powershell })
@@ -149,7 +150,66 @@ document.addEventListener('mousedown', (e) => {
 })
 
 // --- Extension -----------------------------------------------------------------
+// Bloc ```embed : carte de signet (voir bookmark.js) ; le texte YAML reste le contenu
+// du nœud, masqué, pour un .md identique
+function bookmarkNodeView({ node, editor, getPos, options }) {
+  let current = node
+  const dom = document.createElement('div')
+  dom.className = 'bookmark'
+  const card = document.createElement('div')
+  card.className = 'bookmark-card'
+  card.contentEditable = 'false'
+  const tools = document.createElement('div')
+  tools.className = 'bookmark-tools'
+  tools.contentEditable = 'false'
+  const editBtn = document.createElement('button')
+  editBtn.type = 'button'
+  editBtn.title = 'Changer le lien'
+  editBtn.innerHTML = icon('rename', 14)
+  tools.appendChild(editBtn)
+  const pre = document.createElement('pre')
+  pre.className = 'bookmark-source'
+  const code = document.createElement('code')
+  pre.appendChild(code)
+  dom.append(card, tools, pre)
+  const render = () => {
+    renderBookmarkCard(card, parseEmbed(current.textContent))
+    tools.classList.toggle('hidden', !editor.isEditable || !options.fetchBookmark)
+  }
+  editBtn.addEventListener('click', () => {
+    promptUrl({
+      anchorRect: card.getBoundingClientRect(),
+      value: parseEmbed(current.textContent).url || '',
+      onSubmit: async (url) => {
+        const data = await options.fetchBookmark(url)
+        const pos = getPos()
+        if (typeof pos !== 'number') return
+        const text = editor.schema.text(embedText(data))
+        editor.view.dispatch(editor.state.tr.replaceWith(pos + 1, pos + current.nodeSize - 1, text))
+      },
+    })
+  })
+  render()
+  return {
+    dom,
+    contentDOM: code,
+    update(updated) {
+      if (updated.type !== current.type || updated.attrs.language !== EMBED_LANGUAGE) return false
+      const changed = updated.textContent !== current.textContent
+      current = updated
+      if (changed) render()
+      return true
+    },
+    ignoreMutation: (mutation) => mutation.type !== 'selection' && !code.contains(mutation.target),
+    stopEvent: (event) => card.contains(event.target) || tools.contains(event.target),
+  }
+}
+
 export const CodeBlock = CodeBlockLowlight.extend({
+  addOptions() {
+    return { ...this.parent?.(), fetchBookmark: null }
+  },
+
   addKeyboardShortcuts() {
     const outdent = ({ editor }) => {
       if (!editor.isActive('codeBlock')) return false
@@ -176,6 +236,7 @@ export const CodeBlock = CodeBlockLowlight.extend({
 
   addNodeView() {
     return ({ node, editor, getPos }) => {
+      if (node.attrs.language === EMBED_LANGUAGE) return bookmarkNodeView({ node, editor, getPos, options: this.options })
       let current = node
       let lines = 0
       const dom = document.createElement('div')
@@ -247,7 +308,7 @@ export const CodeBlock = CodeBlockLowlight.extend({
         dom,
         contentDOM: code,
         update(updated) {
-          if (updated.type !== current.type) return false
+          if (updated.type !== current.type || updated.attrs.language === EMBED_LANGUAGE) return false
           current = updated
           render()
           return true

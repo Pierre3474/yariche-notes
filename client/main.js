@@ -8,23 +8,20 @@ import '@fontsource/inter/latin-ext-500.css'
 import '@fontsource/inter/latin-ext-600.css'
 import '@fontsource/inter/latin-ext-700.css'
 import { Editor } from '@tiptap/core'
-import { StarterKit } from '@tiptap/starter-kit'
 import { Collaboration } from '@tiptap/extension-collaboration'
 import { CollaborationCaret } from '@tiptap/extension-collaboration-caret'
 import { Placeholder } from '@tiptap/extensions'
-import { Markdown } from 'tiptap-markdown'
-import { TaskList, TaskItem } from '@tiptap/extension-list'
 import { Image } from '@tiptap/extension-image'
-import { Link } from '@tiptap/extension-link'
-import { Table, TableRow, TableHeader, TableCell } from '@tiptap/extension-table'
 import { BubbleMenu } from '@tiptap/extension-bubble-menu'
 import { NodeSelection, TextSelection } from '@tiptap/pm/state'
 import { SlashCommand } from './slash-command.js'
 import { createAiInline } from './ai-inline.js'
 import { AiGhost } from './ai-ghost.js'
 import { MentionMenu } from './mention.js'
-import { MarkdownHighlight, MarkdownText, TaskListTight, MarkdownHardBreak } from './markdown-extras.js'
-import { CodeBlock, lastCodeLanguage } from './code-block.js'
+import { lastCodeLanguage } from './code-block.js'
+import { baseExtensions, contentMarkdownExtensions } from './editor-extensions.js'
+import { promptUrl, fetchBookmark, insertBookmarkBlock } from './bookmark.js'
+import 'katex/dist/katex.min.css'
 import { CommentHighlights, createCommentsManager } from './comments.js'
 import { avatarColor } from './suggest-menu.js'
 import { LinkDecorations } from './link-decorations.js'
@@ -701,33 +698,35 @@ async function uploadFile(file, room = currentRoom) {
 const isPdf = (file) => file.type === 'application/pdf' || /\.pdf$/i.test(file.name)
 
 // Fonctionne pour l'éditeur principal comme pour ceux des lignes de base.
-// Image : insérée comme image. PDF : insérée comme intégration Obsidian ![[nom.pdf]]
-// (affichée en carte cliquable, le fichier reste dans attachments/).
+// Image : insérée comme image. Autre fichier (PDF, document, archive…) : intégration
+// Obsidian ![[nom.ext]], affichée en carte (le fichier reste dans attachments/).
+const isImageFile = (file) => file.type.startsWith('image/')
 async function uploadAndInsertImage(file, ed, pos) {
   try {
     const url = await uploadFile(file)
     if (ed.isDestroyed) return
     const at = pos ?? ed.state.selection.from
-    if (isPdf(file)) {
-      ed.view.dispatch(ed.state.tr.insertText(`![[${url.split('/').pop()}]]`, at))
-    } else {
+    if (isImageFile(file)) {
       ed.view.dispatch(ed.state.tr.insert(at, ed.schema.nodes.image.create({ src: url })))
+    } else {
+      ed.view.dispatch(ed.state.tr.insertText(`![[${url.split('/').pop()}]]`, at))
     }
   } catch (err) {
-    toast(`${isPdf(file) ? 'PDF' : 'Image'} non envoyé : ${err.message}`)
+    toast(`${isImageFile(file) ? 'Image' : isPdf(file) ? 'PDF' : 'Fichier'} non envoyé : ${err.message}`)
   }
 }
 
-function pickImageFor(ed) {
+function pickFileFor(ed, accept = '') {
   const input = document.createElement('input')
   input.type = 'file'
-  input.accept = 'image/*,application/pdf'
+  if (accept) input.accept = accept
   input.onchange = () => {
     const file = input.files?.[0]
     if (file) uploadAndInsertImage(file, ed)
   }
   input.click()
 }
+const pickImageFor = (ed) => pickFileFor(ed, 'image/*,application/pdf')
 
 // « / Page », « / Base de données », « / Whiteboard » : sous-page + lien, puis on y va
 async function createSubpageFromSlash(ed, range, type) {
@@ -789,42 +788,37 @@ const VaultImage = Image.extend({
   },
 })
 
-// Extensions communes à l'éditeur de page et à ceux des lignes de base.
-// L'ordre compte : tiptap-markdown se greffe sur les extensions déjà
-// enregistrées portant le même nom (image, link, table...)
-// Tiptap 3 : l'historique (undoRedo) vient de Yjs ; le lien est configuré à part ; pas de
-// souligné (pas de Markdown pour ça) ni de paragraphe final ajouté d'office (le fichier
-// ouvert doit rester identique)
-const STARTER_KIT = {
-  undoRedo: false,
-  text: false,
-  codeBlock: false,
-  hardBreak: false,
-  link: false,
-  underline: false,
-  trailingNode: false,
+// Extensions communes à l'éditeur de page et à ceux des lignes de base (schéma et
+// format Markdown : editor-extensions.js)
+// Signet : lien demandé sous le curseur, aperçu par le serveur, bloc ```embed inséré
+function insertBookmarkFor(ed) {
+  const at = ed.state.selection.from
+  const coords = ed.view.coordsAtPos(at)
+  promptUrl({
+    anchorRect: { left: coords.left, bottom: coords.bottom },
+    onSubmit: async (url) => {
+      const data = await fetchBookmark(api, url)
+      if (!ed.isDestroyed) insertBookmarkBlock(ed, data, at)
+    },
+  })
 }
 
 function contentExtensions({ onMention }) {
   return [
-    VaultImage,
-    Link.configure({ openOnClick: false, autolink: true, HTMLAttributes: { rel: 'noopener', target: '_blank' } }),
-    Table.configure({ resizable: false }),
-    TableRow,
-    TableHeader,
-    TableCell,
-    MarkdownHighlight.configure({ multicolor: false }),
-    CodeBlock,
-    Markdown.configure({ html: false, transformPastedText: true, linkify: true, breaks: true }),
-    SlashCommand.configure({ insertImage: pickImageFor, createSubpage: createSubpageFromSlash, openAi: openAiInline, aiEnabled: () => !!me?.ai }),
+    ...contentMarkdownExtensions({ image: VaultImage, fetchBookmark: (url) => fetchBookmark(api, url) }),
+    SlashCommand.configure({
+      insertImage: pickImageFor,
+      insertFile: (ed) => pickFileFor(ed),
+      insertBookmark: insertBookmarkFor,
+      createSubpage: createSubpageFromSlash,
+      openAi: openAiInline,
+      aiEnabled: () => !!me?.ai,
+    }),
     MentionMenu.configure({ getUsers: () => usersCache, getPages: () => lastEntries, onMentionUser: onMention }),
     AiGhost.configure({
       enabled: () => !!me?.ai && !me?.guest && aiGhostOn(),
       request: async (before) => (await api('/api/ai', { method: 'POST', body: JSON.stringify({ action: 'complete', context: before }) })).text,
     }),
-    TaskList,
-    TaskListTight,
-    TaskItem.configure({ nested: true }),
     LinkDecorations.configure({
       // Lien vers une page existante (résolu comme Obsidian), sinon création de la page
       // dans le dossier de la note ouverte
@@ -847,13 +841,13 @@ const imageEditorProps = (getEd) => ({
   handleDrop: (view, event, slice, moved) => {
     if (moved) return false
     const file = event.dataTransfer?.files?.[0]
-    if (!file || !(file.type.startsWith('image/') || isPdf(file))) return false
+    if (!file) return false
     event.preventDefault()
     uploadAndInsertImage(file, getEd(), view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos)
     return true
   },
   handlePaste: (view, event) => {
-    const file = [...(event.clipboardData?.files || [])].find((f) => f.type.startsWith('image/') || isPdf(f))
+    const file = [...(event.clipboardData?.files || [])][0]
     if (!file) return false
     event.preventDefault()
     uploadAndInsertImage(file, getEd())
@@ -885,9 +879,7 @@ function createRowEditor(element, field, { editable, initialMarkdown, onMarkdown
     element,
     editable,
     extensions: [
-      StarterKit.configure(STARTER_KIT),
-      MarkdownText,
-      MarkdownHardBreak,
+      ...baseExtensions(),
       Collaboration.configure({ document: doc, field }),
       Placeholder.configure({ placeholder: 'Tape « / » pour les commandes, « @ » pour mentionner', showOnlyCurrent: true }),
       ...contentExtensions({
@@ -1202,6 +1194,9 @@ async function loadRoom(room) {
       getUsers: () => usersCache,
       onSave: saveJSON('/db'),
       createRowEditor,
+      // Relations : bases du coffre que l'on peut lier, ouverture d'une ligne liée
+      listDatabases: () => lastEntries.filter((e) => e.type === 'database' && !e.room.startsWith('.trash')).map((e) => e.room),
+      openTarget: (target, rowId) => navigateTo(target, { row: rowId }),
       openRowId: params.get('row'),
       onRowOpened: (rowId) => {
         const url = new URL(location.href)
@@ -1260,9 +1255,7 @@ function mountEditor(room, editable, userColor) {
     element: editorHost,
     editable,
     extensions: [
-      StarterKit.configure(STARTER_KIT),
-      MarkdownText,
-      MarkdownHardBreak,
+      ...baseExtensions(),
       Collaboration.configure({ document: ydoc }),
       CollaborationCaret.configure({ provider, user: { name: me.name, email: me.email, color: userColor } }),
       Placeholder.configure({
@@ -1551,7 +1544,7 @@ function scheduleToc() {
 function renderToc() {
   const toc = el('toc')
   if (!editor || currentType !== 'doc') return toc.classList.add('hidden')
-  tocHeadings = [...editor.view.dom.querySelectorAll('h1, h2, h3')].filter((h) => h.textContent.trim())
+  tocHeadings = [...editor.view.dom.querySelectorAll('h1, h2, h3, h4')].filter((h) => h.textContent.trim())
   if (tocHeadings.length < 2) return toc.classList.add('hidden')
   toc.classList.remove('hidden')
   el('toc-lines').innerHTML = tocHeadings.map((h) => `<div class="toc-line l${h.tagName[1]}"></div>`).join('')

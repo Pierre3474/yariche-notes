@@ -37,11 +37,13 @@ export const PROP_TYPES = [
   { type: 'email', label: 'E-mail', icon: 'mail' },
   { type: 'created_time', label: 'Date de création', icon: 'clock' },
   { type: 'edited_time', label: 'Dernière modification', icon: 'clock' },
+  { type: 'relation', label: 'Relation', icon: 'relation' },
+  { type: 'rollup', label: 'Rollup', icon: 'rollup' },
 ]
 const TYPE_ICON = Object.fromEntries([['title', 'textAa'], ...PROP_TYPES.map((t) => [t.type, t.icon])])
 const TYPE_LABEL = Object.fromEntries([['title', 'Titre'], ...PROP_TYPES.map((t) => [t.type, t.label])])
 const OPTION_TYPES = new Set(['select', 'multi_select', 'status'])
-const READONLY_TYPES = new Set(['created_time', 'edited_time'])
+const READONLY_TYPES = new Set(['created_time', 'edited_time', 'rollup'])
 
 const VIEW_TYPES = [
   { type: 'table', label: 'Tableau', icon: 'table' },
@@ -80,6 +82,24 @@ function filterKind(type) {
   return 'text'
 }
 const NO_VALUE_OPS = new Set(['empty', 'not_empty', 'checked', 'unchecked'])
+
+// Calculs d'un rollup, selon le type de la propriété visée
+const ROLLUP_CALCS = {
+  all: [['show_original', 'Afficher l’original'], ['count', 'Tout compter'], ['count_values', 'Compter les valeurs'],
+    ['unique', 'Compter les valeurs uniques'], ['empty', 'Vides'], ['not_empty', 'Non vides'],
+    ['percent_empty', '% vides'], ['percent_not_empty', '% non vides']],
+  number: [['sum', 'Somme'], ['average', 'Moyenne'], ['median', 'Médiane'], ['min', 'Min'], ['max', 'Max'], ['range', 'Écart']],
+  date: [['earliest_date', 'Date la plus ancienne'], ['latest_date', 'Date la plus récente'], ['date_range', 'Plage de dates']],
+  checkbox: [['checked', 'Cochées'], ['unchecked', 'Non cochées'], ['percent_checked', '% cochées'], ['percent_unchecked', '% non cochées']],
+}
+const rollupCalcsFor = (type) => [
+  ...ROLLUP_CALCS.all,
+  ...(type === 'number' ? ROLLUP_CALCS.number : []),
+  ...(['date', 'created_time', 'edited_time'].includes(type) ? ROLLUP_CALCS.date : []),
+  ...(type === 'checkbox' ? ROLLUP_CALCS.checkbox : []),
+]
+const ROLLUP_NUMERIC = new Set(['count', 'count_values', 'unique', 'empty', 'not_empty', 'percent_empty', 'percent_not_empty',
+  'sum', 'average', 'median', 'min', 'max', 'range', 'checked', 'unchecked', 'percent_checked', 'percent_unchecked', 'date_range'])
 
 const CALCS = {
   all: [['count', 'Tout compter'], ['count_values', 'Compter les valeurs'], ['empty', 'Vides'], ['not_empty', 'Non vides'], ['pct_empty', '% vides'], ['pct_not_empty', '% non vides']],
@@ -126,6 +146,8 @@ function hostOf(url) {
 // ===========================================================================
 export function mountDatabase(ydoc, opts) {
   const { room, editable, me, getUsers, api, onSave, createRowEditor, onRowOpened, toast } = opts
+  const listDatabases = opts.listDatabases || (() => [])
+  const openTarget = opts.openTarget || (() => {})
   const root = ydoc.getMap('database')
   const container = document.getElementById('db-view')
   const storageKey = `yariche-dbview:${room}`
@@ -193,6 +215,18 @@ export function mountDatabase(ydoc, opts) {
   const peekProps = peek.querySelector('.peek-props')
   const peekEditorEl = peek.querySelector('.peek-editor')
 
+  // Clic sur une ligne liée : elle s'ouvre (dans cette base, ou dans la base liée)
+  const onRelationChip = (e) => {
+    const chip = e.target.closest('.db-rel[data-rel-row]')
+    if (!chip || chip.closest('.db-pop')) return
+    e.preventDefault()
+    e.stopPropagation()
+    if (chip.dataset.relRoom === room) openPeek(chip.dataset.relRow)
+    else openTarget(chip.dataset.relRoom, chip.dataset.relRow)
+  }
+  container.addEventListener('click', onRelationChip, true)
+  peek.addEventListener('click', onRelationChip, true)
+
   // --- accès aux données -----------------------------------------------------
   const isReady = () => root.has('schema') && root.has('rows') && root.has('views')
   const S = () => root.get('schema')
@@ -222,9 +256,125 @@ export function mountDatabase(ydoc, opts) {
   }
   const rowTitle = (row) => (row && row[titleProp()?.id]) || ''
 
+  // --- relations et rollups -------------------------------------------------------
+  // Base liée : celle-ci (relation interne) ou une autre, lue par l'API et gardée en
+  // cache ; relue à l'ouverture du sélecteur et toutes les 30 s au plus.
+  const targets = new Map() // room -> { json, at, error, loading }
+  const isSelf = (target) => !target || target === room
+  const baseName = (id) => String(id || '').split('/').pop()
+  function loadTarget(target, { force = false } = {}) {
+    if (isSelf(target)) return Promise.resolve()
+    const entry = targets.get(target)
+    if (entry?.loading) return entry.loading
+    if (entry && !force && Date.now() - entry.at < 30000) return Promise.resolve()
+    const loading = api(`/api/doc/${encodeURIComponent(target)}/db`)
+      .then((json) => targets.set(target, { json: json?.version === 2 ? json : null, at: Date.now(), error: null }))
+      .catch((err) => targets.set(target, { json: null, at: Date.now(), error: err?.message || 'inaccessible' }))
+      .finally(() => !destroyed && scheduleRender())
+    targets.set(target, { ...(entry || { json: null }), at: entry?.at || 0, loading })
+    return loading
+  }
+  // { schema: {id: prop}, rows: Map(id -> ligne), order: [ids], title: prop } de la base liée
+  let selfBase = null // recalculée après chaque modification de cette base
+  function relatedBase(target) {
+    if (isSelf(target)) {
+      if (!selfBase) {
+        const schema = Object.fromEntries(props().map((p) => [p.id, p]))
+        const order = rowIds()
+        selfBase = { schema, rows: new Map(order.map((id) => [id, rowData(id)])), order, title: titleProp(), ok: true }
+      }
+      return selfBase
+    }
+    const entry = targets.get(target)
+    if (!entry) loadTarget(target)
+    const json = entry?.json
+    if (!json) return { schema: {}, rows: new Map(), order: [], title: null, ok: false, error: entry?.error }
+    const schema = json.schema || {}
+    const order = (json.propOrder || []).map((id) => schema[id]).filter(Boolean)
+    const title = order.find((p) => p.type === 'title') || order[0] || null
+    const rows = new Map(Object.entries(json.rows || {}))
+    const ids = (json.rowOrder || []).filter((id) => rows.has(id))
+    for (const id of rows.keys()) if (!ids.includes(id)) ids.push(id)
+    return { schema, rows, order: ids, title, ok: true }
+  }
+  const relationIds = (p, row) => (Array.isArray(row?.[p.id]) ? row[p.id] : [])
+  function relatedRows(p, row) {
+    const base = relatedBase(p.target)
+    return relationIds(p, row)
+      .map((id) => ({ id, row: base.rows.get(id) }))
+      .filter((r) => r.row)
+      .map(({ id, row: r }) => ({ id, ...r, _title: (base.title && r[base.title.id]) || '' }))
+  }
+
+  let rollupDepth = 0
+  function computeRollup(p, row) {
+    const rel = prop(p.relationProp)
+    if (!rel || rel.type !== 'relation' || !p.targetProp) return { v: null, text: '' }
+    const base = relatedBase(rel.target)
+    const tp = base.schema[p.targetProp]
+    if (!tp || rollupDepth > 2) return { v: null, text: '' }
+    const calc = p.aggregation || 'show_original'
+    rollupDepth++
+    try {
+      const rows = relatedRows(rel, row)
+      // Rollup ou relation de la base liée : pas de calcul imbriqué au-delà de cette base
+      const valueOf = (r) => (tp.type === 'rollup' || tp.type === 'relation' ? (isSelf(rel.target) ? cellValue(tp, r) : r[tp.id]) : cellValue(tp, r))
+      const textOf = (r) => (tp.type === 'relation' ? '' : cellText(tp, r))
+      const values = rows.map(valueOf)
+      const empty = (v) => v === null || v === undefined || v === '' || (Array.isArray(v) && !v.length) || (tp.type === 'checkbox' && !v)
+      const filled = values.filter((v) => !empty(v))
+      const count = (v) => (Array.isArray(v) ? v.length : empty(v) ? 0 : 1)
+      const pct = (n) => (rows.length ? Math.round((n / rows.length) * 100) : 0)
+      const nums = values.map(Number).filter((n, i) => !empty(values[i]) && Number.isFinite(n))
+      const dates = values
+        .map((v) => (typeof v === 'number' ? tsToIso(v) : v ? String(v).slice(0, 10) : ''))
+        .filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d))
+        .sort()
+      const num = (n) => ({ v: n, text: fmtNumber(tp.type === 'number' ? tp : {}, n) })
+      const percent = (n) => ({ v: n, text: `${n} %` })
+      switch (calc) {
+        case 'show_original': {
+          const texts = rows.map(textOf).filter(Boolean)
+          return { v: texts, text: texts.join(', '), original: rows }
+        }
+        case 'count': return num(rows.length)
+        case 'count_values': return num(values.reduce((a, v) => a + count(v), 0))
+        case 'unique': return num(new Set(rows.map(textOf).filter(Boolean)).size)
+        case 'empty': return num(rows.length - filled.length)
+        case 'not_empty': return num(filled.length)
+        case 'percent_empty': return percent(pct(rows.length - filled.length))
+        case 'percent_not_empty': return percent(pct(filled.length))
+        case 'sum': return nums.length ? num(nums.reduce((a, b) => a + b, 0)) : { v: null, text: '' }
+        case 'average': return nums.length ? num(nums.reduce((a, b) => a + b, 0) / nums.length) : { v: null, text: '' }
+        case 'median': {
+          const s2 = [...nums].sort((a, b) => a - b)
+          return s2.length ? num(s2.length % 2 ? s2[(s2.length - 1) / 2] : (s2[s2.length / 2 - 1] + s2[s2.length / 2]) / 2) : { v: null, text: '' }
+        }
+        case 'min': return nums.length ? num(Math.min(...nums)) : { v: null, text: '' }
+        case 'max': return nums.length ? num(Math.max(...nums)) : { v: null, text: '' }
+        case 'range': return nums.length ? num(Math.max(...nums) - Math.min(...nums)) : { v: null, text: '' }
+        case 'earliest_date': return dates.length ? { v: dates[0], text: fmtDate(dates[0]) } : { v: null, text: '' }
+        case 'latest_date': return dates.length ? { v: dates.at(-1), text: fmtDate(dates.at(-1)) } : { v: null, text: '' }
+        case 'date_range': {
+          if (!dates.length) return { v: null, text: '' }
+          const days = Math.round((new Date(dates.at(-1)) - new Date(dates[0])) / 86400000)
+          return { v: days, text: `${days} jour${days > 1 ? 's' : ''}` }
+        }
+        case 'checked': return num(values.filter(Boolean).length)
+        case 'unchecked': return num(values.filter((v) => !v).length)
+        case 'percent_checked': return percent(pct(values.filter(Boolean).length))
+        case 'percent_unchecked': return percent(pct(values.filter((v) => !v).length))
+        default: return { v: null, text: '' }
+      }
+    } finally {
+      rollupDepth--
+    }
+  }
+
   function cellValue(p, row) {
     if (p.type === 'created_time') return row._created || null
     if (p.type === 'edited_time') return row._edited || null
+    if (p.type === 'rollup') return computeRollup(p, row).v
     return row[p.id]
   }
 
@@ -247,6 +397,10 @@ export function mountDatabase(ydoc, opts) {
         return v ? 'Oui' : ''
       case 'number':
         return fmtNumber(p, v)
+      case 'relation':
+        return relatedRows(p, row).map((r) => r._title || 'Sans titre').join(', ')
+      case 'rollup':
+        return computeRollup(p, row).text
       default:
         return v == null ? '' : String(v)
     }
@@ -274,6 +428,81 @@ export function mountDatabase(ydoc, opts) {
       touch(r)
     })
   }
+  // Liens d'une relation ; dans les deux sens, le lien inverse est posé dans la base liée
+  // (ici même pour une relation interne, par le serveur pour une autre base)
+  function syncReverse(p, rowId, added, removed) {
+    if (!p.twoWay || !p.reverseProp || (!added.length && !removed.length)) return
+    if (isSelf(p.target)) {
+      const rev = prop(p.reverseProp)
+      if (!rev) return
+      tx(() => {
+        for (const [ids, add] of [[added, true], [removed, false]]) {
+          for (const id of ids) {
+            const r = R().get(id)
+            if (!r) continue
+            const cur = Array.isArray(r.get(rev.id)) ? r.get(rev.id) : []
+            const next = add ? (cur.includes(rowId) ? cur : [...cur, rowId]) : cur.filter((x) => x !== rowId)
+            if (next.length) r.set(rev.id, next)
+            else r.delete(rev.id)
+          }
+        }
+      })
+      return
+    }
+    const ops = [
+      ...added.map((id) => ({ op: 'link', propId: p.reverseProp, rowId: id, add: [rowId], remove: [] })),
+      ...removed.map((id) => ({ op: 'link', propId: p.reverseProp, rowId: id, add: [], remove: [rowId] })),
+    ]
+    relationOps(p.target, ops).then(() => loadTarget(p.target, { force: true }))
+  }
+  function relationOps(target, ops) {
+    return api(`/api/doc/${encodeURIComponent(target)}/db/relation`, { method: 'POST', body: JSON.stringify({ ops }) }).catch((err) =>
+      toast(`Base liée « ${baseName(target)} » non mise à jour : ${err?.message || 'erreur'}`)
+    )
+  }
+  function setRelation(rowId, p, next) {
+    const r = R().get(rowId)
+    if (!r) return
+    const prev = relationIds(p, r.toJSON())
+    if (p.limit === 1) next = next.slice(-1)
+    tx(() => {
+      if (next.length) r.set(p.id, next)
+      else r.delete(p.id)
+      touch(r)
+    })
+    syncReverse(p, rowId, next.filter((id) => !prev.includes(id)), prev.filter((id) => !next.includes(id)))
+  }
+  // Nouvelle relation : base liée choisie, propriété miroir créée si « dans les deux sens »
+  function configureRelation(propId, target, twoWay) {
+    const p = prop(propId)
+    if (!p) return
+    const old = { ...p }
+    const self = isSelf(target)
+    const reverseProp = twoWay ? (old.target === (self ? null : target) && old.reverseProp) || uid() : null
+    const next = { ...p, target: self ? null : target, twoWay, reverseProp }
+    // Autre base liée : les liens existants ne veulent plus rien dire
+    const retarget = (old.target || null) !== next.target
+    tx(() => {
+      S().set(propId, next)
+      if (retarget) for (const id of rowIds()) R().get(id)?.delete(propId)
+      if (twoWay && self && !S().get(reverseProp)) {
+        S().set(reverseProp, { id: reverseProp, name: `${p.name} (lien inverse)`, type: 'relation', target: null, twoWay: true, reverseProp: propId })
+        PO().push([reverseProp])
+      }
+    })
+    if (old.twoWay && old.reverseProp && (retarget || !twoWay)) dropReverse(old)
+    if (twoWay && !self)
+      relationOps(target, [{ op: 'ensureProp', prop: { id: reverseProp, name: baseName(room), type: 'relation', target: room, twoWay: true, reverseProp: propId } }]).then(() =>
+        loadTarget(target, { force: true })
+      )
+  }
+  function dropReverse(p) {
+    if (!p.twoWay || !p.reverseProp) return
+    if (isSelf(p.target)) {
+      if (prop(p.reverseProp)?.type === 'relation') deleteProp(p.reverseProp, { cascade: false })
+    } else relationOps(p.target, [{ op: 'dropProp', propId: p.reverseProp }])
+  }
+
   function addRow(initial = {}, { index = null, open = false } = {}) {
     const id = uid()
     tx(() => {
@@ -290,6 +519,9 @@ export function mountDatabase(ydoc, opts) {
     return id
   }
   function deleteRows(ids) {
+    for (const p of props().filter((x) => x.type === 'relation' && x.twoWay && x.reverseProp && !isSelf(x.target))) {
+      for (const id of ids) syncReverse(p, id, [], relationIds(p, rowData(id)))
+    }
     tx(() => {
       for (const id of ids) {
         R().delete(id)
@@ -339,7 +571,9 @@ export function mountDatabase(ydoc, opts) {
     })
     return id
   }
-  function deleteProp(id) {
+  function deleteProp(id, { cascade = true } = {}) {
+    const removed = S().get(id)
+    if (cascade && removed?.type === 'relation') dropReverse(removed)
     tx(() => {
       S().delete(id)
       const i = PO().toArray().indexOf(id)
@@ -442,6 +676,16 @@ export function mountDatabase(ydoc, opts) {
     if (!p || p.type === type || p.type === 'title') return
     const next = { ...p, type }
     delete next.format
+    for (const k of ['target', 'twoWay', 'reverseProp', 'limit', 'relationProp', 'targetProp', 'aggregation']) delete next[k]
+    if (p.type === 'relation') dropReverse(p)
+    if (type === 'relation' || type === 'rollup') {
+      tx(() => {
+        for (const id of rowIds()) R().get(id)?.delete(propId)
+        S().set(propId, next)
+      })
+      if (type === 'relation') openRelationSetup(null, propId)
+      return
+    }
     if (type === 'number') next.format = 'number'
     if (OPTION_TYPES.has(type)) {
       next.options = OPTION_TYPES.has(p.type)
@@ -636,6 +880,7 @@ export function mountDatabase(ydoc, opts) {
     })
   }
   const onDeepChange = () => {
+    selfBase = null
     scheduleRender()
     scheduleSave()
   }
@@ -698,6 +943,7 @@ export function mountDatabase(ydoc, opts) {
     const eb = isEmptyValue(p, b)
     if (ea || eb) return ea === eb ? 0 : ea ? 1 : -1
     if (p.type === 'number' || p.type === 'created_time' || p.type === 'edited_time') return Number(va) - Number(vb)
+    if (p.type === 'rollup' && ROLLUP_NUMERIC.has(p.aggregation)) return Number(va) - Number(vb)
     if (p.type === 'checkbox') return (va ? 1 : 0) - (vb ? 1 : 0)
     if (p.type === 'select' || p.type === 'status') {
       const ia = p.options.findIndex((o) => o.id === va)
@@ -776,6 +1022,21 @@ export function mountDatabase(ydoc, opts) {
       }
       case 'email':
         return v ? `<a class="db-link" href="mailto:${esc(v)}">${esc(v)}</a>` : ''
+      case 'relation':
+        return relatedRows(p, row)
+          .map((r) => `<span class="db-rel" data-rel-room="${esc(isSelf(p.target) ? room : p.target)}" data-rel-row="${esc(r.id)}">${icon('page', 14)}<span>${esc(r._title || 'Sans titre')}</span></span>`)
+          .join('')
+      case 'rollup': {
+        const res = computeRollup(p, row)
+        if (res.original) {
+          const rel = prop(p.relationProp)
+          const tp = relatedBase(rel?.target).schema[p.targetProp]
+          if (tp && tp.type !== 'relation' && tp.type !== 'rollup' && tp.type !== 'title' && tp.type !== 'text')
+            return res.original.map((r) => valueHTML(tp, r, { compact: true })).filter(Boolean).join(' ')
+          return esc(res.text)
+        }
+        return esc(res.text)
+      }
       default:
         return esc(v ?? '')
     }
@@ -862,6 +1123,7 @@ export function mountDatabase(ydoc, opts) {
     if (p.type === 'checkbox') return setCell(rowId, p.id, !row[p.id])
     if (OPTION_TYPES.has(p.type)) return openOptionEditor(anchor, rowId, p)
     if (p.type === 'person') return openPersonEditor(anchor, rowId, p)
+    if (p.type === 'relation') return openRelationEditor(anchor, rowId, p)
     if (p.type === 'date') return openDateEditor(anchor, rowId, p)
     // Texte, titre, nombre, URL, e-mail : champ en surimpression de la cellule
     const pop = openPopover(anchor, 'db-text-editor', { cover: true, width: 280 })
@@ -1137,6 +1399,109 @@ export function mountDatabase(ydoc, opts) {
     requestAnimationFrame(() => input.focus())
   }
 
+  // Sélecteur de lignes de la base liée (recherche, cochées en tête), comme Notion
+  function openRelationEditor(anchor, rowId, p) {
+    if (!p.target && p.target !== null) return openRelationSetup(anchor, p.id)
+    const pop = openPopover(anchor, 'db-option-editor db-rel-editor', { cover: true, width: 320 })
+    pop.innerHTML = `<div class="opt-top"><input placeholder="Rechercher une ligne de « ${esc(isSelf(p.target) ? baseName(room) : baseName(p.target))} »…" /></div><div class="opt-list"></div>`
+    const input = pop.querySelector('input')
+    const listEl = pop.querySelector('.opt-list')
+    const current = () => relationIds(p, rowData(rowId))
+    const draw = () => {
+      const base = relatedBase(p.target)
+      if (!base.ok) {
+        listEl.innerHTML = `<div class="empty-hint">${base.error ? `Base liée inaccessible : ${esc(base.error)}` : 'Chargement…'}</div>`
+        return pop._place?.()
+      }
+      const q = normalize(input.value)
+      const cur = current()
+      const titleOf = (id) => (base.title && base.rows.get(id)?.[base.title.id]) || 'Sans titre'
+      const list = [...cur.filter((id) => base.rows.has(id)), ...base.order.filter((id) => !cur.includes(id))].filter((id) =>
+        normalize(titleOf(id)).includes(q)
+      )
+      listEl.innerHTML = list.length ? '' : '<div class="empty-hint">Aucune ligne trouvée</div>'
+      if (cur.length && !q) listEl.insertAdjacentHTML('afterbegin', '<div class="db-menu-header">Liées</div>')
+      for (const id of list.slice(0, 200)) {
+        const item = document.createElement('div')
+        item.className = 'opt-item'
+        item.innerHTML = `<span class="db-rel">${icon('page', 14)}<span>${esc(titleOf(id))}</span></span><span class="topbar-spacer"></span>${cur.includes(id) ? `<span class="menu-check">${icon('check', 14)}</span>` : ''}`
+        item.addEventListener('mousedown', (e) => {
+          e.preventDefault()
+          const now = current()
+          setRelation(rowId, p, now.includes(id) ? now.filter((x) => x !== id) : [...now, id])
+          if (p.limit === 1) closePopover()
+          else draw()
+        })
+        listEl.appendChild(item)
+      }
+      pop._place?.()
+    }
+    input.addEventListener('input', draw)
+    input.addEventListener('keydown', (e) => e.key === 'Escape' && closePopover())
+    draw()
+    loadTarget(p.target, { force: true }).then(() => popover === pop && draw())
+    requestAnimationFrame(() => input.focus())
+  }
+
+  // Choix de la base liée d'une relation, puis « dans les deux sens »
+  function openRelationSetup(anchor, propId) {
+    const p = prop(propId)
+    if (!p || !editable) return
+    anchor ||= container.querySelector(`.dbt-th[data-prop="${CSS.escape(propId)}"]`) || container.querySelector('.db-tools')
+    const others = listDatabases().filter((id) => id !== room)
+    const pick = (target) => {
+      const self = isSelf(target)
+      openMenu(anchor, [
+        { header: `Relation avec « ${baseName(self ? room : target)} »` },
+        { label: 'Dans les deux sens', hint: self ? 'propriété miroir ici' : `visible dans ${baseName(target)}`, icon: 'arrowBoth', run: () => configureRelation(propId, target, true) },
+        { label: 'Dans un seul sens', icon: 'arrowRight', run: () => configureRelation(propId, target, false) },
+      ], { width: 300 })
+    }
+    openMenu(anchor, [
+      { header: 'Lier à la base' },
+      { label: `${baseName(room)} (cette base)`, icon: 'database', checked: p.target === null ? true : undefined, keepOpen: true, run: () => pick(null) },
+      ...others.map((id) => ({ label: baseName(id), hint: id.includes('/') ? id.slice(0, id.lastIndexOf('/')) : '', icon: 'database', checked: p.target === id ? true : undefined, keepOpen: true, run: () => pick(id) })),
+    ], { width: 300 })
+  }
+
+  // Rollup : relation, propriété de la base liée, calcul
+  function openRollupSetup(anchor, propId, step = 'relation') {
+    const p = prop(propId)
+    if (!p || !editable) return
+    const relations = props().filter((x) => x.type === 'relation')
+    if (!relations.length) return toast('Ajoute d’abord une propriété Relation.')
+    if (step === 'relation')
+      return openMenu(anchor, [
+        { header: 'Relation' },
+        ...relations.map((r) => ({ label: r.name, icon: 'relation', checked: p.relationProp === r.id, keepOpen: true, run: () => {
+          updateProp(propId, { relationProp: r.id, targetProp: null })
+          loadTarget(r.target).then(() => openRollupSetup(anchor, propId, 'target'))
+        } })),
+      ], { width: 260 })
+    const rel = prop(p.relationProp)
+    const base = relatedBase(rel?.target)
+    if (step === 'target') {
+      const list = Object.values(base.schema).filter((x) => x.id !== p.id)
+      return openMenu(anchor, [
+        { header: `Propriété de « ${baseName(isSelf(rel?.target) ? room : rel?.target)} »` },
+        ...(list.length ? list : [{ name: base.ok ? 'Aucune propriété' : 'Chargement…', id: null, type: 'text' }]).map((x) => ({
+          label: x.name, icon: TYPE_ICON[x.type], checked: p.targetProp === x.id, keepOpen: !!x.id, run: () => {
+            if (!x.id) return
+            const calcs = rollupCalcsFor(x.type)
+            const aggregation = calcs.some(([id]) => id === p.aggregation) ? p.aggregation : 'show_original'
+            updateProp(propId, { targetProp: x.id, aggregation })
+            openRollupSetup(anchor, propId, 'calc')
+          },
+        })),
+      ], { width: 260 })
+    }
+    const tp = base.schema[p.targetProp]
+    openMenu(anchor, [
+      { header: 'Calcul' },
+      ...rollupCalcsFor(tp?.type).map(([id, label]) => ({ label, checked: (p.aggregation || 'show_original') === id, run: () => updateProp(propId, { aggregation: id }) })),
+    ], { width: 240 })
+  }
+
   function openDateEditor(anchor, rowId, p) {
     const pop = openPopover(anchor, 'db-date-editor', { cover: false, width: 260 })
     const v = rowData(rowId)?.[p.id] || ''
@@ -1190,7 +1555,9 @@ export function mountDatabase(ydoc, opts) {
       onDone?.(id)
       requestAnimationFrame(() => {
         const head = container.querySelector(`.dbt-th[data-prop="${CSS.escape(id)}"]`)
-        if (head) openPropMenu(head, id, { rename: true })
+        if (type === 'relation') openRelationSetup(head || anchor, id)
+        else if (type === 'rollup') openRollupSetup(head || anchor, id)
+        else if (head) openPropMenu(head, id, { rename: true })
       })
     })])
   }
@@ -1224,6 +1591,21 @@ export function mountDatabase(ydoc, opts) {
         : null,
       editable && OPTION_TYPES.has(p.type)
         ? { label: 'Modifier les options', icon: 'select', keepOpen: true, run: () => openOptionsManager(anchor, propId) }
+        : null,
+      editable && p.type === 'relation'
+        ? { label: `Base liée : ${p.target === undefined ? 'à choisir' : baseName(isSelf(p.target) ? room : p.target)}`, icon: 'database', keepOpen: true, run: () => openRelationSetup(anchor, propId) }
+        : null,
+      editable && p.type === 'relation'
+        ? { label: 'Une seule ligne liée', icon: 'relation', checked: p.limit === 1, keepOpen: true, run: () => updateProp(propId, p.limit === 1 ? { limit: null } : { limit: 1 }) }
+        : null,
+      editable && p.type === 'rollup'
+        ? { label: `Relation : ${prop(p.relationProp)?.name || 'à choisir'}`, icon: 'relation', keepOpen: true, run: () => openRollupSetup(anchor, propId, 'relation') }
+        : null,
+      editable && p.type === 'rollup' && p.relationProp
+        ? { label: `Propriété : ${relatedBase(prop(p.relationProp)?.target).schema[p.targetProp]?.name || 'à choisir'}`, icon: 'list', keepOpen: true, run: () => openRollupSetup(anchor, propId, 'target') }
+        : null,
+      editable && p.type === 'rollup' && p.targetProp
+        ? { label: `Calcul : ${[...ROLLUP_CALCS.all, ...ROLLUP_CALCS.number, ...ROLLUP_CALCS.date, ...ROLLUP_CALCS.checkbox].find(([id]) => id === (p.aggregation || 'show_original'))?.[1]}`, icon: 'rollup', keepOpen: true, run: () => openRollupSetup(anchor, propId, 'calc') }
         : null,
       editable && p.type === 'number'
         ? { label: 'Format du nombre', icon: 'hash', keepOpen: true, run: () =>

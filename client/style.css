@@ -645,10 +645,12 @@ input:focus, select:focus, textarea:focus {
 .editor .ProseMirror p { margin: 0; padding: 4px 0; }
 .editor .ProseMirror h1,
 .editor .ProseMirror h2,
-.editor .ProseMirror h3 { font-weight: 600; letter-spacing: -0.02em; padding: 0; }
+.editor .ProseMirror h3,
+.editor .ProseMirror h4 { font-weight: 600; letter-spacing: -0.02em; padding: 0; }
 .editor .ProseMirror h1 { font-size: 28px; line-height: 36px; margin: 24px 0 4px; }
 .editor .ProseMirror h2 { font-size: 24px; line-height: 32px; margin: 20px 0 4px; }
 .editor .ProseMirror h3 { font-size: 20px; line-height: 28px; margin: 16px 0 4px; }
+.editor .ProseMirror h4 { font-size: 17px; line-height: 26px; margin: 12px 0 2px; }
 .editor .ProseMirror > :first-child { margin-top: 0; }
 .editor .ProseMirror ul,
 .editor .ProseMirror ol { padding-left: 24px; margin: 2px 0; }
@@ -963,6 +965,7 @@ input:focus, select:focus, textarea:focus {
 .toc-line { height: 2px; border-radius: 1px; background: var(--border-strong); width: 22px; }
 .toc-line.l2 { width: 16px; }
 .toc-line.l3 { width: 10px; }
+.toc-line.l4 { width: 6px; }
 .toc-line.active { background: var(--text); }
 .toc-panel {
   display: none;
@@ -990,6 +993,7 @@ input:focus, select:focus, textarea:focus {
 }
 .toc-item.l2 { padding-left: 20px; }
 .toc-item.l3 { padding-left: 32px; }
+.toc-item.l4 { padding-left: 44px; }
 .toc-item:hover { background: var(--hover); color: var(--text); }
 .toc-item.active { color: var(--text); }
 @media (max-width: 1100px) { .toc { display: none !important; } }
@@ -2218,6 +2222,7 @@ input:focus, select:focus, textarea:focus {
 .peek-editor .ProseMirror h1 { font-size: 26px; line-height: 34px; margin: 20px 0 4px; font-weight: 600; }
 .peek-editor .ProseMirror h2 { font-size: 22px; line-height: 30px; margin: 16px 0 4px; font-weight: 600; }
 .peek-editor .ProseMirror h3 { font-size: 18px; line-height: 26px; margin: 12px 0 4px; font-weight: 600; }
+.peek-editor .ProseMirror h4 { font-size: 16px; line-height: 24px; margin: 10px 0 2px; font-weight: 600; }
 .peek-editor .ProseMirror img { max-width: 100%; border-radius: var(--radius-md); }
 .peek-editor ul[data-type="taskList"] { list-style: none; padding-left: 2px; }
 .peek-editor ul[data-type="taskList"] li { display: flex; gap: 8px; }
@@ -3014,3 +3019,209 @@ body.onboarding-open .toast { z-index: 400; }
   .embed-image, .ProseMirror img { max-width: 100% !important; break-inside: avoid; }
   pre, table, blockquote, .callout { break-inside: avoid; }
 }
+
+/* ---------- Blocs façon Notion : colonnes, dépliants, équations, signets, fichiers ---------- */
+/* Colonnes : encadrés « [!columns] » / « [!column|N] », marqueurs masqués */
+.editor .ProseMirror blockquote.callout-columns {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  border: none;
+  padding: 0;
+  margin: 8px 0;
+}
+.editor .ProseMirror blockquote.callout-columns > :not(.callout-column):not(.col-divider):not(.callout-hidden-line) { flex: 1 0 100%; }
+.editor .ProseMirror blockquote.callout-column {
+  flex-basis: 0;
+  flex-shrink: 1;
+  min-width: 0;
+  border: none;
+  padding: 0 4px;
+  margin: 0;
+}
+/* Marqueur gardé dans la mise en page (taille nulle) : le curseur peut se poser après lui */
+.editor .ProseMirror .callout-hidden-line,
+.editor .ProseMirror br.callout-hidden { display: none; }
+.editor .ProseMirror .callout-hidden { font-size: 0; }
+/* Colonne vide (marqueur seul) : une ligne cliquable */
+.editor .ProseMirror .callout-column > p:first-child { min-height: 32px; }
+.col-divider {
+  flex: 0 0 24px;
+  align-self: stretch;
+  position: relative;
+  cursor: col-resize;
+  user-select: none;
+}
+.col-divider::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 11px;
+  width: 2px;
+  border-radius: 1px;
+  background: transparent;
+  transition: background 0.12s;
+}
+.ProseMirror[contenteditable="true"] .col-divider:hover::after,
+.col-divider.dragging::after { background: var(--primary); opacity: 0.6; }
+.ProseMirror[contenteditable="false"] .col-divider { cursor: default; }
+body.col-resizing, body.col-resizing * { cursor: col-resize !important; user-select: none !important; }
+@media (max-width: 700px) {
+  .editor .ProseMirror blockquote.callout-columns { flex-direction: column; }
+  .editor .ProseMirror blockquote.callout-column { flex-grow: 1 !important; width: 100%; padding: 0; }
+  .col-divider { display: none; }
+}
+
+/* Repli des encadrés (« - » / « + ») et blocs dépliants « [!toggle] » */
+.callout-fold {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin: 0 4px 0 -4px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: none;
+  color: var(--text-secondary);
+  vertical-align: -5px;
+  cursor: pointer;
+}
+.callout-fold:hover { background: var(--hover-strong); color: var(--text); }
+.callout-fold svg { transition: transform 0.12s; transform: rotate(90deg); }
+.callout-fold.folded svg { transform: none; }
+.editor .ProseMirror blockquote.callout-folded > :not(:first-child),
+.editor .ProseMirror .callout-fold-hidden { display: none; }
+.editor .ProseMirror blockquote.callout.callout-toggle {
+  background: none;
+  padding: 0 0 0 4px;
+  margin: 2px 0;
+}
+.callout-toggle > :not(:first-child) { padding-left: 26px; }
+.callout-toggle .callout-marker::after { content: none; }
+.callout-toggle .callout-title { color: var(--text); font-weight: 400; }
+.callout-toggle > p:first-child:has(.callout-marker:not(.with-title))::after {
+  content: 'Bloc dépliant';
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+
+/* Équations (KaTeX) */
+.editor .ProseMirror .math-inline { cursor: pointer; padding: 0 1px; border-radius: 3px; }
+.editor .ProseMirror .math-block {
+  display: block;
+  margin: 8px 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  text-align: center;
+  overflow-x: auto;
+  cursor: pointer;
+}
+.editor .ProseMirror[contenteditable="true"] .math-inline:hover,
+.editor .ProseMirror[contenteditable="true"] .math-block:hover,
+.math-inline.editing,
+.math-block.editing { background: var(--hover); }
+.math-empty { color: var(--text-tertiary); font-style: italic; }
+.math-block.math-empty { text-align: left; }
+.math-editor { position: fixed; z-index: 1000; display: flex; flex-direction: column; gap: 8px; padding: 10px; }
+.math-editor textarea {
+  width: 100%;
+  resize: vertical;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--hover);
+  color: var(--text);
+  font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.math-editor-preview { min-height: 24px; max-height: 160px; overflow: auto; text-align: center; }
+.math-editor-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--text-tertiary); }
+
+/* Signets (bloc ```embed) */
+.editor .ProseMirror .bookmark { position: relative; margin: 8px 0; }
+.bookmark-source { display: none; }
+.bookmark-link {
+  display: flex;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: inherit;
+  text-decoration: none;
+  min-height: 96px;
+}
+.bookmark-link:hover { background: var(--hover); }
+.bookmark-text { flex: 1 1 auto; min-width: 0; padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+.bookmark-title { font-size: 14px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bookmark-desc {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--text-secondary);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.bookmark-url { margin-top: auto; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); min-width: 0; }
+.bookmark-url img { width: 16px; height: 16px; flex: none; margin: 0; border-radius: 2px; }
+.bookmark-url span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bookmark-cover { flex: 0 0 33%; max-width: 250px; position: relative; }
+.bookmark-cover img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; margin: 0; border-radius: 0; }
+.bookmark-card.broken .bookmark-title { color: var(--text-secondary); }
+.bookmark-tools { position: absolute; top: 6px; right: 6px; display: flex; gap: 4px; opacity: 0; transition: opacity 0.12s; }
+.bookmark:hover .bookmark-tools { opacity: 1; }
+.bookmark-tools button {
+  display: inline-flex;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--popover);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.bookmark-tools button:hover { color: var(--text); }
+.bookmark-prompt { position: fixed; z-index: 1000; display: flex; flex-wrap: wrap; gap: 8px; padding: 10px; }
+.bookmark-prompt input {
+  flex: 1 1 100%;
+  padding: 7px 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--hover);
+  color: var(--text);
+  font: inherit;
+}
+.bookmark-prompt-error { flex: 1 1 100%; font-size: 12px; color: #e5484d; }
+@media (max-width: 700px) { .bookmark-cover { display: none; } }
+
+/* Cartes cliquables : pas le style des liens du texte */
+.editor .ProseMirror a.bookmark-link,
+.editor .ProseMirror a.embed-file { color: inherit; text-decoration: none; cursor: pointer; }
+/* Pièces jointes ![[fichier.ext]] */
+.embed-file { display: flex; align-items: center; gap: 10px; max-width: 420px; margin: 6px 0; padding: 10px 12px;
+  border: 1px solid var(--border); border-radius: var(--radius-md); color: inherit; text-decoration: none; }
+.embed-file:hover { background: var(--hover); }
+.embed-file-badge { flex: none; min-width: 34px; padding: 2px 6px; border-radius: 4px; background: var(--hover-strong); color: var(--text-secondary);
+  font-size: 11px; font-weight: 700; letter-spacing: 0.04em; text-align: center; }
+.embed-file-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+
+/* Relations (bases) : lignes liées en pastilles */
+.db-rel {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  margin: 1px 6px 1px 0;
+  padding: 0 4px;
+  border-radius: 4px;
+  color: var(--text);
+  text-decoration: underline;
+  text-decoration-color: var(--border-strong);
+  text-underline-offset: 3px;
+  cursor: pointer;
+  vertical-align: middle;
+}
+.db-rel svg { flex: none; color: var(--text-secondary); }
+.db-rel span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.db-rel:hover { background: var(--hover-strong); }
+.db-rel-editor .db-rel { text-decoration: none; cursor: inherit; }

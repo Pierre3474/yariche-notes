@@ -4,24 +4,25 @@
 import { Extension } from '@tiptap/core'
 import { Plugin, PluginKey } from '@tiptap/pm/state'
 import { Decoration, DecorationSet } from '@tiptap/pm/view'
+import { CALLOUT_RE } from './callout-blocks.js'
 
 // [[Page]], [[Page|alias]], [[Page#Titre]] (syntaxes Obsidian)
 const WIKILINK_RE = /\[\[([^\]|#]+)(#[^\]|]*)?(\|[^\]]*)?\]\]/g
-// Encadrés Obsidian/GitHub : « > [!note] » en début de citation
-const CALLOUT_RE = /^\[!([a-zA-Z]+)\][+-]?/
+// Encadrés Obsidian/GitHub : « > [!note] » en début de citation (CALLOUT_RE) ;
+// colonnes et blocs dépliants : voir callout-blocks.js
 const CALLOUT_KIND = {
   note: 'blue', info: 'blue', todo: 'blue', abstract: 'purple', summary: 'purple', tldr: 'purple',
   tip: 'green', hint: 'green', important: 'purple', success: 'green', check: 'green', done: 'green',
   question: 'orange', help: 'orange', faq: 'orange', warning: 'orange', caution: 'orange', attention: 'orange',
   danger: 'red', error: 'red', failure: 'red', fail: 'red', missing: 'red', bug: 'red',
-  example: 'purple', quote: 'gray', cite: 'gray',
+  example: 'purple', quote: 'gray', cite: 'gray', toggle: 'toggle',
 }
 const CALLOUT_LABEL = {
   note: 'Note', info: 'Info', todo: 'À faire', abstract: 'Résumé', summary: 'Résumé', tldr: 'Résumé',
   tip: 'Astuce', hint: 'Astuce', important: 'Important', success: 'Succès', check: 'Succès', done: 'Fait',
   question: 'Question', help: 'Aide', faq: 'FAQ', warning: 'Attention', caution: 'Prudence', attention: 'Attention',
   danger: 'Danger', error: 'Erreur', failure: 'Échec', fail: 'Échec', missing: 'Manquant', bug: 'Bug',
-  example: 'Exemple', quote: 'Citation', cite: 'Citation',
+  example: 'Exemple', quote: 'Citation', cite: 'Citation', toggle: 'Bloc dépliant',
 }
 const TAG_RE = /(^|\s)(#[\wàâäéèêëïîôöùûüç-]+)/g
 // Image intégrée à la façon d'Obsidian : ![[photo.png]], ![[dossier/photo.png|300]]
@@ -49,6 +50,30 @@ function pdfWidget(target) {
   return card
 }
 
+// Autre pièce jointe : carte avec l'extension, le nom et un lien de téléchargement
+// (le serveur l'envoie en pièce jointe, jamais affichée dans l'app)
+const FILE_EMBED_RE = /!\[\[([^\]|#\n]+?\.([a-z0-9]{1,12}))\]\]/gi
+const NOT_FILE = /^(png|jpe?g|gif|webp|svg|avif|bmp|pdf|md|canvas|base)$/i
+function fileWidget(target, ext) {
+  const name = target.split('/').pop()
+  const params = new URLSearchParams({ name })
+  if (target.includes('/')) params.append('path', target)
+  const card = document.createElement('a')
+  card.className = 'embed-file'
+  card.href = `/api/vault-file?${params}`
+  card.rel = 'noopener'
+  card.setAttribute('download', name)
+  card.contentEditable = 'false'
+  const badge = document.createElement('span')
+  badge.className = 'embed-file-badge'
+  badge.textContent = ext.toUpperCase().slice(0, 5)
+  const label = document.createElement('span')
+  label.className = 'embed-file-name'
+  label.textContent = name
+  card.append(badge, label)
+  return card
+}
+
 function embedWidget(target, width) {
   if (/\.pdf$/i.test(target)) return pdfWidget(target)
   const img = document.createElement('img')
@@ -70,7 +95,7 @@ function buildDecorations(doc, { onWikilinkClick, onTagClick }) {
     if (node.type.name === 'blockquote') {
       const first = node.firstChild
       const m = first?.isTextblock ? first.textContent.match(CALLOUT_RE) : null
-      if (m) {
+      if (m && !['columns', 'column'].includes(m[1].toLowerCase())) {
         const kind = m[1].toLowerCase()
         const color = CALLOUT_KIND[kind] || 'blue'
         decorations.push(Decoration.node(pos, pos + node.nodeSize, { class: `callout callout-${color}` }))
@@ -108,8 +133,18 @@ function buildDecorations(doc, { onWikilinkClick, onTagClick }) {
       )
     }
 
+    const fileEmbeds = []
+    for (const m of text.matchAll(FILE_EMBED_RE)) {
+      if (NOT_FILE.test(m[2])) continue
+      const from = pos + m.index
+      const to = from + m[0].length
+      fileEmbeds.push(m.index + 1)
+      decorations.push(Decoration.inline(from, to, { class: 'embed-source' }))
+      decorations.push(Decoration.widget(to, () => fileWidget(m[1].trim(), m[2]), { key: `file:${m[1]}`, side: 1 }))
+    }
+
     for (const m of text.matchAll(WIKILINK_RE)) {
-      if (isImageEmbedAt(text, m.index)) continue // image intégrée, pas un lien de page
+      if (isImageEmbedAt(text, m.index) || fileEmbeds.includes(m.index)) continue // intégration, pas un lien de page
       const from = pos + m.index
       const to = from + m[0].length
       decorations.push(

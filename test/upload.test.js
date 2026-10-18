@@ -1,4 +1,5 @@
-// Envoi de fichiers : images et PDF acceptés, le reste refusé, PDF lisible dans le navigateur.
+// Envoi de fichiers : images, PDF et pièces jointes ; PDF lisible dans le navigateur, le reste
+// téléchargé en bac à sable.
 import { test, before, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { startServer } from './helpers.js'
@@ -43,7 +44,17 @@ test('une image reste acceptée et reste en bac à sable', async () => {
   assert.ok(file.headers.get('content-security-policy')?.includes('sandbox'))
 })
 
-test('les autres types de fichiers sont refusés', async () => {
-  assert.equal((await send('page.html', 'text/html', Buffer.from('<h1>x</h1>'))).status, 400)
-  assert.equal((await send('archive.zip', 'application/zip', Buffer.from('PK'))).status, 400)
+test('les autres fichiers sont acceptés et servis en téléchargement, en bac à sable', async () => {
+  for (const [name, type, bytes] of [['page.html', 'text/html', Buffer.from('<h1>x</h1>')], ['archive.zip', 'application/zip', Buffer.from('PK')]]) {
+    const res = await send(name, type, bytes)
+    assert.equal(res.status, 200)
+    const file = await fetch(`${y.base}/${res.body.url}`)
+    assert.match(file.headers.get('content-disposition') || '', /^attachment/)
+    assert.ok(file.headers.get('content-security-policy')?.includes('sandbox'))
+  }
+})
+
+test('un « .pdf » annoncé sous un autre type doit quand même être un PDF', async () => {
+  const res = await send('piege.pdf', 'application/octet-stream', Buffer.from('<script>alert(1)</script>'))
+  assert.equal(res.status, 400)
 })

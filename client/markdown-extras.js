@@ -26,7 +26,8 @@ import Text from '@tiptap/extension-text'
 // Syntaxes Obsidian à écrire telles quelles : [[lien]], ![[intégration]], note de bas de page [^1]
 const PROTECTED = /(!?\[\[[^[\]\n]+?\]\]|\[\^[^\]\s]+\])/
 const isProtected = (part) => /^(!?\[\[[^[\]\n]+?\]\]|\[\^[^\]\s]+\])$/.test(part)
-const CALLOUT_MARKER = /^\[![A-Za-z]+\][+-]?/
+// « [!note] », « [!column|40] », « [!toggle]- »
+const CALLOUT_MARKER = /^\[![A-Za-z][\w-]*(?:\|[^\]\n]*)?\][+-]?/
 const escapeHTML = (value) => value.replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
 export const MarkdownText = Text.extend({
