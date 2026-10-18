@@ -45,14 +45,14 @@
     "express-session": "^1.18.0",
     "highlight.js": "^11.12.0",
     "katex": "^0.19.0",
-    "lib0": "^0.2.117",
+    "lib0": "^0.2.119",
     "lowlight": "^3.3.0",
     "markdown-it-mark": "^4.0.0",
     "multer": "^2.4.0",
     "openid-client": "^5.6.5",
     "session-file-store": "^1.5.0",
     "tiptap-markdown": "^0.9.0",
-    "ws": "^8.17.1",
+    "ws": "^8.22.0",
     "y-websocket": "^1.5.4",
     "yjs": "^13.6.18",
     "zod": "^3.25.76"
@@ -60,6 +60,6 @@
   "devDependencies": {
     "concurrently": "^8.2.2",
     "happy-dom": "^20.14.5",
-    "vite": "^8.3.1"
+    "vite": "^8.3.4"
   }
 }
