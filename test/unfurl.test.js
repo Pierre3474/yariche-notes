@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { isPublicAddress, isAllowedPrivateHost, checkUrl, parseMetadata, unfurl } from '../server/unfurl.js'
 
 test('aperçu de lien : adresses privées refusées', () => {
-  for (const a of ['127.0.0.1', '10.0.20.1', '192.168.1.10', '172.16.5.4', '169.254.169.254', '100.64.0.5', '0.0.0.0', '::1', 'fe80::1', 'fd00::1', '::ffff:10.0.0.1'])
+  for (const a of ['127.0.0.1', '192.0.2.1', '192.168.1.10', '172.16.5.4', '169.254.169.254', '100.64.0.5', '0.0.0.0', '::1', 'fe80::1', 'fd00::1', '::ffff:10.0.0.1'])
     assert.equal(isPublicAddress(a), false, a)
   for (const a of ['8.8.8.8', '1.1.1.1', '2a01:4f8::1', '::ffff:8.8.8.8']) assert.equal(isPublicAddress(a), true, a)
 })

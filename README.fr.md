@@ -31,7 +31,7 @@ cd yariche-notes
 ./install.sh              # Docker ; ./install.sh --local pour Node.js sans Docker
 ```
 
-Sous Windows : `powershell -ExecutionPolicy Bypass -File install.ps1` (Docker Desktop).
+Sous Windows, lance `powershell -ExecutionPolicy Bypass -File install.ps1` (Docker Desktop requis).
 
 Le script crée le `.env` (secrets générés), démarre Yariche et affiche l'adresse
 (<http://localhost:5174>) et le code d'installation. À la première visite, tu crées le compte
