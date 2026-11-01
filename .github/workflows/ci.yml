@@ -30,7 +30,7 @@ jobs:
       - run: docker build -t yariche:ci .
 
   macos-app:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - run: swift build -c release
