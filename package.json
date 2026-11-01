@@ -55,7 +55,7 @@
     "ws": "^8.17.1",
     "y-websocket": "^1.5.4",
     "yjs": "^13.6.18",
-    "zod": "^3.25.76"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
