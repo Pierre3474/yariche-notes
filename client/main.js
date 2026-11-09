@@ -14,6 +14,7 @@ import { Placeholder } from '@tiptap/extensions'
 import { Image } from '@tiptap/extension-image'
 import { BubbleMenu } from '@tiptap/extension-bubble-menu'
 import { NodeSelection, TextSelection } from '@tiptap/pm/state'
+import { COVER_GALLERY, coverStyle } from './covers.js'
 import { SlashCommand } from './slash-command.js'
 import { createAiInline } from './ai-inline.js'
 import { AiGhost } from './ai-ghost.js'
@@ -277,6 +278,21 @@ async function createFolder(parent = null) {
 
 function rowMenuItems(entry) {
   const folder = isFolder(entry)
+  // Fichier quelconque (PDF, image…) : ni sous-page ni duplication, comme dans Obsidian
+  if (entry.type === 'file')
+    return [
+      {
+        label: entry.favorite ? 'Retirer des favoris' : 'Ajouter aux favoris',
+        icon: 'star',
+        run: () => toggleFavorite(entry.room, !entry.favorite),
+      },
+      { label: 'Télécharger', icon: 'download', run: () => (location.href = fileURL(entry.room, true)) },
+      { label: 'Renommer', icon: 'rename', run: () => openRenameModal(entry.room) },
+      { label: 'Déplacer vers…', icon: 'move', run: () => openMovePicker(entry.room) },
+      inMacApp() ? { label: 'Afficher dans le Finder', icon: 'finder', run: () => revealInFinder(entry.room) } : null,
+      'sep',
+      { label: 'Déplacer dans la corbeille', icon: 'trash', danger: true, run: () => trashPage(entry.room) },
+    ]
   return [
     {
       label: entry.favorite ? 'Retirer des favoris' : 'Ajouter aux favoris',
@@ -383,7 +399,8 @@ function renderRow(container, entry, depth, inFavorites = false) {
   name.innerHTML = `${emoji}${escapeHTML(nameOf(entry.room))}`
 
   row.append(chevron, name)
-  if (TYPE_BADGE[entry.type]) row.insertAdjacentHTML('beforeend', `<span class="tree-badge">${TYPE_BADGE[entry.type]}</span>`)
+  const badge = entry.type === 'file' ? fileExt(entry.room).toUpperCase() : TYPE_BADGE[entry.type]
+  if (badge) row.insertAdjacentHTML('beforeend', `<span class="tree-badge">${escapeHTML(badge)}</span>`)
   // Partagé (avec des comptes, par lien ou lien d'invité) ; un dossier partagé = espace d'équipe
   if (entry.shared)
     row.insertAdjacentHTML('beforeend', `<span class="tree-shared" title="${isFolder(entry) ? 'Espace partagé' : 'Partagé'}">${icon('people', 12)}</span>`)
@@ -699,7 +716,7 @@ const isPdf = (file) => file.type === 'application/pdf' || /\.pdf$/i.test(file.n
 
 // Fonctionne pour l'éditeur principal comme pour ceux des lignes de base.
 // Image : insérée comme image. Autre fichier (PDF, document, archive…) : intégration
-// Obsidian ![[nom.ext]], affichée en carte (le fichier reste dans attachments/).
+// Obsidian ![[nom.ext]], affichée en carte (le fichier reste dans le dossier des pièces jointes).
 const isImageFile = (file) => file.type.startsWith('image/')
 async function uploadAndInsertImage(file, ed, pos) {
   try {
@@ -709,7 +726,7 @@ async function uploadAndInsertImage(file, ed, pos) {
     if (isImageFile(file)) {
       ed.view.dispatch(ed.state.tr.insert(at, ed.schema.nodes.image.create({ src: url })))
     } else {
-      ed.view.dispatch(ed.state.tr.insertText(`![[${url.split('/').pop()}]]`, at))
+      ed.view.dispatch(ed.state.tr.insertText(`![[${decodeURIComponent(url.split('/').pop())}]]`, at))
     }
   } catch (err) {
     toast(`${isImageFile(file) ? 'Image' : isPdf(file) ? 'PDF' : 'Fichier'} non envoyé : ${err.message}`)
@@ -938,6 +955,7 @@ function destroyCurrent() {
   blockHandle = null
   activeBoard = null
   activeDatabase = null
+  el('file-view').innerHTML = ''
   el('toc').classList.add('hidden')
   document.getElementById('access-denied-msg')?.remove()
 }
@@ -949,6 +967,7 @@ function showView(type) {
   scroller.classList.toggle('hidden', type === 'board')
   editorHost.classList.toggle('hidden', type !== 'doc')
   el('folder-view').classList.toggle('hidden', type !== 'folder')
+  el('file-view').classList.toggle('hidden', type !== 'file')
   el('special-view').classList.toggle('hidden', !special)
   if (special) docCover.className = 'doc-cover no-cover'
   el('backlinks-panel').classList.add('hidden')
@@ -1040,8 +1059,11 @@ function applyAppearance(appearance, editable) {
   docIcon.classList.toggle('hidden', !emoji)
   docIcon.disabled = !editable
   el('add-icon-btn').classList.toggle('hidden', !!emoji || !editable)
-  const cover = currentType === 'doc' ? appearance?.cover : null
-  docCover.className = 'doc-cover ' + (cover ? `cover-${cover}` : 'no-cover')
+  const cover = currentType === 'doc' && coverStyle(appearance?.cover) ? appearance.cover : null
+  const style = coverStyle(cover)
+  shownCover = cover
+  docCover.className = 'doc-cover ' + (style ? style.className || 'has-image' : 'no-cover')
+  docCover.style.backgroundImage = style?.image ? `url("${style.image}")` : ''
   el('add-cover-btn').classList.toggle('hidden', !!cover || !editable || currentType !== 'doc')
   // Rangée masquée quand il n'y a plus rien à ajouter (sinon trou de 32px sous l'icône)
   el('doc-header-controls').classList.toggle('hidden', !editable || (!!emoji && (!!cover || currentType !== 'doc')))
@@ -1098,6 +1120,75 @@ docTitle.onblur = async () => {
   }
 }
 
+// --- Fichier quelconque (PDF, image, audio, vidéo, texte) ------------------
+const fileExt = (room) => {
+  const name = nameOf(room)
+  const dot = name.lastIndexOf('.')
+  return dot > 0 ? name.slice(dot + 1).toLowerCase() : ''
+}
+const fileURL = (room, download = false) =>
+  `/api/file?room=${encodeURIComponent(room)}${me?.vault ? `&${vaultQuery()}` : ''}${download ? '&download=1' : ''}`
+const FILE_KINDS = {
+  pdf: ['pdf'],
+  image: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'avif', 'bmp', 'ico'],
+  video: ['mp4', 'webm', 'mov', 'm4v'],
+  audio: ['mp3', 'wav', 'ogg', 'm4a', 'flac', 'aac'],
+  text: ['txt', 'csv', 'tsv', 'json', 'yaml', 'yml', 'xml', 'log', 'sh', 'py', 'js', 'ts', 'css', 'html', 'conf', 'ini', 'toml', 'sql', 'c', 'h', 'cpp', 'java', 'go', 'rs', 'php'],
+}
+const fileKind = (room) => Object.keys(FILE_KINDS).find((k) => FILE_KINDS[k].includes(fileExt(room))) || null
+
+function renderFileView(room) {
+  const view = el('file-view')
+  const url = fileURL(room)
+  const kind = fileKind(room)
+  view.innerHTML = ''
+  const bar = document.createElement('div')
+  bar.className = 'file-actions'
+  const dl = document.createElement('a')
+  dl.className = 'secondary-btn'
+  dl.href = fileURL(room, true)
+  dl.innerHTML = `${icon('download', 14)}<span>Télécharger</span>`
+  bar.appendChild(dl)
+  if (inMacApp()) {
+    const finder = document.createElement('button')
+    finder.className = 'secondary-btn'
+    finder.innerHTML = `${icon('finder', 14)}<span>Afficher dans le Finder</span>`
+    finder.onclick = () => revealInFinder(room)
+    bar.appendChild(finder)
+  }
+  view.appendChild(bar)
+
+  let body
+  if (kind === 'pdf') {
+    body = document.createElement('iframe')
+    body.className = 'file-frame'
+    body.src = url
+  } else if (kind === 'image') {
+    body = document.createElement('img')
+    body.className = 'file-image'
+    body.src = url
+    body.alt = nameOf(room)
+  } else if (kind === 'video' || kind === 'audio') {
+    body = document.createElement(kind)
+    body.className = `file-${kind}`
+    body.controls = true
+    body.src = url
+  } else if (kind === 'text') {
+    body = document.createElement('pre')
+    body.className = 'file-text'
+    body.textContent = 'Chargement…'
+    fetch(url)
+      .then((r) => (r.ok ? r.text() : Promise.reject(new Error(r.status))))
+      .then((t) => currentRoom === room && (body.textContent = t.length > 500_000 ? `${t.slice(0, 500_000)}\n…` : t))
+      .catch(() => currentRoom === room && (body.textContent = 'Lecture impossible'))
+  } else {
+    body = document.createElement('p')
+    body.className = 'file-none'
+    body.textContent = 'Aperçu indisponible pour ce type de fichier.'
+  }
+  view.appendChild(body)
+}
+
 // --- Chargement d'une page -------------------------------------------------
 async function loadRoom(room) {
   if (!room) return openLanding()
@@ -1143,6 +1234,11 @@ async function loadRoom(room) {
   docTitle.contentEditable = currentCanRename ? 'plaintext-only' : 'false'
   el('share-btn').dataset.type = type
   pushRecent(room)
+  if (type === 'file') {
+    renderFileView(room)
+    revealInSidebar(room)
+    return
+  }
 
   const userColor = colorFor(me.email)
   ydoc = new Y.Doc()
@@ -2191,7 +2287,8 @@ function openEmojiPicker(anchor) {
   picker.style.left = `${r.left}px`
   picker.style.top = `${r.bottom + 6}px`
 }
-const currentCover = () => [...docCover.classList].find((c) => c.startsWith('cover-'))?.slice(6) || null
+let shownCover = null
+const currentCover = () => shownCover
 const currentEmoji = () => docIcon.textContent || null
 
 docIcon.onclick = (e) => {
@@ -2200,10 +2297,17 @@ docIcon.onclick = (e) => {
 el('add-icon-btn').onclick = (e) => openEmojiPicker(e.currentTarget)
 
 function openCoverPicker(anchor) {
+  coverPicker.querySelectorAll('.cover-photo[data-thumb]').forEach((sw) => {
+    sw.style.backgroundImage = `url("${sw.dataset.thumb}")`
+    delete sw.dataset.thumb
+  })
   coverPicker.classList.remove('hidden')
+  // Reste dans la fenêtre (le bouton « Changer » est tout à droite de la couverture)
   const r = anchor.getBoundingClientRect()
-  coverPicker.style.left = `${r.left}px`
-  coverPicker.style.top = `${r.bottom + 6}px`
+  const w = coverPicker.offsetWidth
+  const h = coverPicker.offsetHeight
+  coverPicker.style.left = `${Math.max(16, Math.min(r.left, innerWidth - w - 16))}px`
+  coverPicker.style.top = `${Math.max(16, Math.min(r.bottom + 6, innerHeight - h - 16))}px`
 }
 el('add-cover-btn').onclick = (e) => openCoverPicker(e.currentTarget)
 el('cover-change-btn').onclick = (e) => openCoverPicker(e.currentTarget)
@@ -2211,14 +2315,40 @@ el('cover-remove-btn').onclick = async () => {
   await saveAppearance({ cover: null })
   applyAppearance({ icon: currentEmoji(), cover: null }, true)
 }
-coverPicker.querySelectorAll('.cover-swatch').forEach((sw) => {
-  sw.onclick = async () => {
-    const cover = sw.dataset.cover
-    coverPicker.classList.add('hidden')
-    await saveAppearance({ cover })
-    applyAppearance({ icon: currentEmoji(), cover }, true)
+async function setCover(cover) {
+  coverPicker.classList.add('hidden')
+  await saveAppearance({ cover })
+  applyAppearance({ icon: currentEmoji(), cover }, true)
+}
+// Galerie (miniatures chargées à la première ouverture du sélecteur)
+el('cover-gallery').innerHTML = COVER_GALLERY.map(
+  ([section, items]) =>
+    `<div class="cover-section-title">${section}</div><div class="cover-grid">${items
+      .map(([slug, title]) => `<button class="cover-swatch cover-photo" data-cover="photo-${slug}" data-thumb="/covers/mini/${slug}.jpg" title="${escapeHTML(title)}"></button>`)
+      .join('')}</div>`
+).join('')
+coverPicker.querySelectorAll('.cover-swatch').forEach((sw) => (sw.onclick = () => setCover(sw.dataset.cover)))
+// Image à soi : envoyée comme une pièce jointe, puis utilisée par son chemin dans le coffre
+el('cover-upload-btn').onclick = () => {
+  const input = document.createElement('input')
+  input.type = 'file'
+  input.accept = 'image/png,image/jpeg,image/webp,image/gif,image/avif'
+  input.onchange = async () => {
+    const file = input.files?.[0]
+    if (!file || !currentRoom) return
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const res = await fetch(`${docApi(currentRoom, '/upload')}?${vaultQuery()}`, { method: 'POST', body: form })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok || !body.path) throw new Error(body.error || 'envoi échoué')
+      await setCover(`file:${body.path}`)
+    } catch (err) {
+      toast(`Couverture non enregistrée : ${err.message}`)
+    }
   }
-})
+  input.click()
+}
 
 // --- App macOS (WKWebView) : pont natif -------------------------------------
 const nativeBridge = window.webkit?.messageHandlers?.yariche
@@ -3204,7 +3334,8 @@ async function boot() {
   refreshInbox()
   setInterval(refreshInbox, 30000)
   // Fichiers ajoutés, déplacés ou supprimés ailleurs (Nextcloud, Obsidian, Finder)
-  setInterval(() => document.visibilityState === 'visible' && refreshPageList().catch(() => {}), 15000)
+  setInterval(() => document.visibilityState === 'visible' && refreshPageList().catch(() => {}), 5000)
+  window.addEventListener('focus', () => refreshPageList().catch(() => {}))
   setInterval(loadUsers, 5 * 60000)
   window.addEventListener('focus', refreshInbox)
 }

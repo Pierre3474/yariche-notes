@@ -119,6 +119,32 @@ test('modifications faites ailleurs : ajout, déplacement (métadonnées suivies
   await eventually(async () => !(await entry('Note déplacée')))
 })
 
+test('autres fichiers du coffre (PDF…) : visibles comme dans Obsidian, servis tels quels', async () => {
+  const pdf = '%PDF-1.4\n%%EOF\n'
+  fs.mkdirSync(vault('Pièces'))
+  fs.writeFileSync(vault('Pièces', 'Sujet TP.pdf'), pdf)
+  const added = await eventually(async () => entry('Pièces/Sujet TP.pdf'))
+  assert.equal(added.type, 'file')
+  assert.equal(added.parent, 'Pièces')
+  const res = await fetch(`${BASE}/api/file?room=${encodeURIComponent('Pièces/Sujet TP.pdf')}`)
+  assert.equal(res.status, 200)
+  assert.equal(res.headers.get('content-type'), 'application/pdf')
+  assert.equal(await res.text(), pdf)
+  assert.equal((await api(doc('Pièces/Sujet TP.pdf', '/duplicate'), { method: 'POST' })).status, 400)
+  // Pas de document Yjs : il réécrirait le PDF
+  const ws = new WebSocket(`${BASE.replace('http', 'ws')}/ws/${encodeURIComponent('Pièces/Sujet TP.pdf')}`)
+  await new Promise((resolve) => ws.addEventListener('close', resolve) || ws.addEventListener('error', resolve))
+  assert.notEqual(ws.readyState, WebSocket.OPEN)
+  const mv = await api(doc('Pièces/Sujet TP.pdf', '/move'), { method: 'POST', body: { parent: null } })
+  assert.equal(mv.status, 200, JSON.stringify(mv.json))
+  await eventually(async () => entry('Sujet TP.pdf'))
+  assert.equal(fs.readFileSync(vault('Sujet TP.pdf'), 'utf8'), pdf)
+  // Suppression ailleurs, après la fenêtre où le watcher ignore nos propres déplacements
+  await sleep(5500)
+  fs.rmSync(vault('Sujet TP.pdf'))
+  await eventually(async () => !(await entry('Sujet TP.pdf')))
+})
+
 test('corbeille : chemin gardé, nom libéré, restauration au bon endroit', async () => {
   await api(doc('Cours', '/create'), { method: 'POST', body: { type: 'folder' } })
   await api(doc('Cours/TP', '/create'), { method: 'POST', body: { type: 'doc' } })

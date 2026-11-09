@@ -229,6 +229,10 @@ function runSync() {
   const started = Date.now()
   const args = ['--non-interactive', '-n', '--exclude', current.excludeFile, '--max-sync-retries', '3', '--path', current.folder]
   if (process.env.NEXTCLOUD_TRUST_SELF_SIGNED === '1') args.push('--trust')
+  // Débit de téléchargement plafonné (Ko/s) : la première copie d'un gros coffre ne sature
+  // pas le serveur Nextcloud
+  const downlimit = Number(process.env.NEXTCLOUD_DOWNLIMIT_KB) || 0
+  if (downlimit > 0) args.push('--downlimit', String(downlimit))
   args.push(current.dir, current.account.url)
   let output = ''
   let child

@@ -19,7 +19,8 @@ import fs from 'fs'
 import path from 'path'
 
 export const SIDE_FILES = ['.md', '.board.json', '.db.json']
-const EXT = { doc: '.md', board: '.board.json', database: '.db.json' }
+// Fichier quelconque (PDF, image, archive…) : son identifiant garde son extension
+const EXT = { doc: '.md', board: '.board.json', database: '.db.json', file: '' }
 const TRASH = '.trash'
 
 let VAULT_DIR = null
@@ -33,7 +34,7 @@ export function initVault(vaultDir, metaApi) {
 
 export const sideFile = (id, ext) => path.join(VAULT_DIR, `${id}${ext}`)
 export const filePath = (id) => sideFile(id, '.md')
-export const mainFile = (id, type) => sideFile(id, EXT[type] || '.md')
+export const mainFile = (id, type) => sideFile(id, EXT[type] ?? '.md')
 // Dossier des enfants : un dossier, ou le dossier homonyme d'une page qui a des sous-pages
 export const childDir = (id) => path.join(VAULT_DIR, id)
 export const nodeDir = (id) => path.dirname(path.join(VAULT_DIR, id))
@@ -104,8 +105,9 @@ export function removeFromDisk(id) {
   pruneEmpty(nodeDir(id))
 }
 
-// Dossiers de fichiers joints : pas des dossiers de notes dans l'explorateur
-const IGNORED_DIRS = new Set(['uploads', 'attachments', 'node_modules'])
+// Anciennes images (uploads/) et dossiers de code régénérables : absents de l'explorateur.
+// attachments/ y figure, comme dans Obsidian
+const IGNORED_DIRS = new Set(['uploads', 'node_modules', '__pycache__', 'venv'])
 // Anciens fichiers internes restés à la racine d'un coffre (avant .yariche/). Les autres
 // noms en « _ » sont des notes ou dossiers normaux (_templates, _prompts d'Obsidian…)
 const LEGACY_FILES = new Set(['_meta.json', '_links.json', '_users.json', '_notifications.json'])
@@ -151,10 +153,14 @@ function scanDisk() {
       return
     }
     const pageNames = new Set()
+    const others = []
     for (const e of entries) {
       if (!e.isFile || ignoredName(e.name) || TEMP_RE.test(e.name)) continue
       const match = typeOfFile(e.name)
-      if (!match) continue
+      if (!match) {
+        others.push(e.name)
+        continue
+      }
       const [ext, type] = match
       const name = e.name.slice(0, -ext.length)
       pageNames.add(name)
@@ -165,6 +171,16 @@ function scanDisk() {
         continue
       }
       present[prefix + name] = { type, ino }
+    }
+    // Autres fichiers (PDF, images, archives…) : visibles dans l'explorateur, comme dans
+    // Obsidian. Un fichier sans extension homonyme d'une page reste caché (même identifiant)
+    for (const name of others) {
+      if (pageNames.has(name)) continue
+      try {
+        present[prefix + name] = { type: 'file', ino: fs.statSync(path.join(dir, name)).ino }
+      } catch {
+        /* disparu entre-temps */
+      }
     }
     for (const e of entries) {
       if (!e.isDir || ignoredName(e.name)) continue

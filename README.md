@@ -129,6 +129,9 @@ All settings are environment variables (see [`.env.example`](.env.example)).
 | `NEXTCLOUD_URL` | Nextcloud address suggested on first launch. |
 | `NEXTCLOUD_USER`, `NEXTCLOUD_APP_PASSWORD` | Fixed Nextcloud account, without the browser login. |
 | `NEXTCLOUD_SYNC_INTERVAL` | Seconds between two syncs (default 30). |
+| `NEXTCLOUD_MAX_VAULT_MB` | Largest Nextcloud folder that can be opened as a vault, in MB (default 2048). The folder is copied to the server. |
+| `NEXTCLOUD_DOWNLIMIT_KB` | Download speed limit during sync, in KB/s (no limit by default). |
+| `ATTACHMENT_FOLDER` | Where pasted files go when the vault has no Obsidian setting: `attachments` (default), `/` for the vault root, `./screens` for a subfolder next to the note. |
 | `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY` | AI assistant (OpenAI-compatible API). The macOS app in local mode reads the same variables from `~/Library/Application Support/Yariche/local/ai.env`. |
 
 ### Nextcloud

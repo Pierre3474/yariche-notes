@@ -221,7 +221,16 @@ export function removeMeta(id) {
 
 // Icône = un emoji (quelques caractères, pas de balisage) ; couverture = identifiant de dégradé
 const cleanIcon = (v) => (typeof v === 'string' && v.length <= 16 && !/[<>&"'`\\]/.test(v) ? v : null)
-const cleanCover = (v) => (typeof v === 'string' && /^[\w-]{1,40}$/.test(v) ? v : null)
+// Couverture : dégradé ou image de la galerie (« gradient-1 », « photo-vague-hokusai »), ou
+// image du coffre (« file:dossier/image.png », chemin relatif sans segment caché ni « .. »)
+const COVER_FILE_RE = /^file:([^\0\\]{1,300}\.(?:png|jpe?g|gif|webp|avif))$/i
+const cleanCover = (v) => {
+  if (typeof v !== 'string') return null
+  if (/^[\w-]{1,40}$/.test(v)) return v
+  const m = COVER_FILE_RE.exec(v)
+  if (!m || m[1].split('/').some((seg) => !seg || seg === '..' || seg.startsWith('.'))) return null
+  return v
+}
 
 export function updateAppearance(id, { icon, cover }) {
   const meta = cache[id]

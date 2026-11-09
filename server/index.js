@@ -8,7 +8,7 @@ import * as decoding from 'lib0/decoding'
 import chokidar from 'chokidar'
 import fs from 'fs'
 import path from 'path'
-import { randomUUID, randomBytes, timingSafeEqual } from 'crypto'
+import { randomUUID, randomBytes, timingSafeEqual, createHash } from 'crypto'
 import multer from 'multer'
 import { fileURLToPath } from 'url'
 import {
@@ -617,7 +617,9 @@ function guestCanSeeFile(session, name) {
   if (!name) return false
   if (session.guestUploads?.includes(name)) return true
   return shareScope(findShare(session.guest?.token)).some((room) => {
-    const p = mainFile(room, getDocMeta(room)?.type || 'doc')
+    const type = getDocMeta(room)?.type || 'doc'
+    if (type === 'file') return false
+    const p = mainFile(room, type)
     try {
       return fs.readFileSync(p, 'utf8').includes(name)
     } catch {
@@ -1358,6 +1360,7 @@ async function main() {
     const email = req.session.user.email
     if (!getRole(room, email) || isTrashId(room)) return res.status(403).json({ error: 'acces refuse' })
     if (getDocMeta(room)?.type === 'folder') return res.status(400).json({ error: 'un dossier ne se duplique pas' })
+    if (getDocMeta(room)?.type === 'file') return res.status(400).json({ error: 'un fichier se duplique dans le Finder' })
     const newRoom = freeId(`${room} (copie)`)
     duplicateDoc(room, newRoom, email)
     // Les commentaires restent sur l'original (comme Notion)
@@ -1394,7 +1397,47 @@ async function main() {
   }
   app.use('/uploads', vaultStatic('uploads'))
   app.use('/attachments', vaultStatic('attachments'))
-  const attachmentsDir = () => path.join(VAULT.dir, 'attachments')
+  // Emplacement des pièces jointes comme dans Obsidian (Fichiers et liens) : réglage de
+  // .obsidian/app.json s'il est là, sinon ATTACHMENT_FOLDER, sinon attachments/.
+  // « / » = racine du coffre, « ./x » = sous-dossier x du dossier de la note.
+  // `link` donne le lien à écrire dans la note (relatif à la note pour « ./ »)
+  function attachmentTarget(room) {
+    let setting = process.env.ATTACHMENT_FOLDER || 'attachments'
+    try {
+      const conf = JSON.parse(fs.readFileSync(path.join(VAULT.dir, '.obsidian', 'app.json'), 'utf8'))
+      if (typeof conf.attachmentFolderPath === 'string') setting = conf.attachmentFolderPath
+    } catch {
+      /* pas de réglage Obsidian dans ce coffre */
+    }
+    const relative = setting === '.' || setting.startsWith('./')
+    const sub = setting.replace(/^\.\/?/, '').replace(/^\/+|\/+$/g, '')
+    const noteDir = room.includes('/') ? room.slice(0, room.lastIndexOf('/')) : ''
+    let rel = relative ? [noteDir, sub].filter(Boolean).join('/') : sub
+    if (rel.split('/').some((seg) => seg === '..' || seg.startsWith('.'))) rel = 'attachments'
+    const encode = (p) => p.split('/').filter(Boolean).map(encodeURIComponent).join('/')
+    return {
+      dir: path.join(VAULT.dir, rel),
+      link: (name) => encode(`${relative ? sub : rel}/${name}`),
+    }
+  }
+  // Fichier identique déjà présent dans ce dossier (collé deux fois) : on réutilise l'existant
+  function sameFileIn(dir, file) {
+    const size = fs.statSync(file).size
+    const digest = (p) => createHash('sha256').update(fs.readFileSync(p)).digest('hex')
+    let mine = null
+    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+      const p = path.join(dir, e.name)
+      if (!e.isFile() || p === file || e.name.startsWith('.')) continue
+      try {
+        if (fs.statSync(p).size !== size) continue
+        mine ??= digest(file)
+        if (digest(p) === mine) return e.name
+      } catch {
+        /* disparu entre-temps */
+      }
+    }
+    return null
+  }
   // Intégrations Obsidian ![[photo.png]] : fichier cherché par son nom dans le coffre
   // Chemins essayés dans l'ordre (relatif à la note, puis au coffre), puis par nom
   app.get('/api/vault-file', (req, res) => {
@@ -1407,6 +1450,21 @@ async function main() {
       return res.status(404).json({ error: 'fichier introuvable' })
     sandboxFile(res, found)
     res.sendFile(found)
+  })
+  // Fichier du coffre ouvert dans l'explorateur (PDF, image, vidéo, texte…), selon les
+  // droits de la personne sur cet élément. ?download=1 force le téléchargement
+  app.get('/api/file', (req, res) => {
+    const room = String(req.query.room || '')
+    const meta = getDocMeta(room)
+    if (!meta || meta.type !== 'file' || !roleOf(req, room)) return res.status(404).json({ error: 'fichier introuvable' })
+    const p = mainFile(room, 'file')
+    if (!fs.existsSync(p)) return res.status(404).json({ error: 'fichier introuvable' })
+    if (req.query.download) return res.download(p, path.basename(p))
+    // L'aperçu PDF s'affiche dans un cadre de l'app : permis depuis cette origine seulement
+    res.setHeader('Content-Security-Policy', String(res.getHeader('Content-Security-Policy')).replace("frame-ancestors 'none'", "frame-ancestors 'self'"))
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN')
+    sandboxFile(res, p)
+    res.sendFile(p)
   })
   // Signets : aperçu d'un lien (titre, description, image) et ses images, par le serveur
   // (garde anti-SSRF dans unfurl.js). 30 aperçus par minute et par compte au plus.
@@ -1442,8 +1500,9 @@ async function main() {
   const upload = multer({
     storage: multer.diskStorage({
       destination: (req, file, cb) => {
-        fs.mkdirSync(attachmentsDir(), { recursive: true })
-        cb(null, attachmentsDir())
+        req.attachTarget ??= attachmentTarget(req.params.room)
+        fs.mkdirSync(req.attachTarget.dir, { recursive: true })
+        cb(null, req.attachTarget.dir)
       },
       filename: (req, file, cb) => {
         // Nom lisible comme Obsidian (« image-20260926-153012.png »), sans espace ni caractère spécial
@@ -1460,7 +1519,7 @@ async function main() {
         const stamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)
         let name = `${base}-${stamp}${ext}`
         let n = 2
-        while (fs.existsSync(path.join(attachmentsDir(), name))) name = `${base}-${stamp}-${n++}${ext}`
+        while (fs.existsSync(path.join(req.attachTarget.dir, name))) name = `${base}-${stamp}-${n++}${ext}`
         cb(null, name)
       },
     }),
@@ -1494,10 +1553,17 @@ async function main() {
         return res.status(400).json({ error: 'ce fichier n’est pas un PDF valide' })
       }
     }
+    let filename = req.file.filename
+    const same = sameFileIn(req.attachTarget.dir, req.file.path)
+    if (same) {
+      fs.rmSync(req.file.path, { force: true })
+      filename = same
+    }
     // Un invité revoit tout de suite l'image qu'il vient d'envoyer (avant l'enregistrement)
-    if (req.session.user.guest)
-      req.session.guestUploads = [...(req.session.guestUploads || []), req.file.filename].slice(-50)
-    res.json({ url: `attachments/${req.file.filename}` })
+    if (req.session.user.guest) req.session.guestUploads = [...(req.session.guestUploads || []), filename].slice(-50)
+    // url : lien à écrire dans la note ; path : chemin dans le coffre (couverture de page)
+    const rel = path.relative(VAULT.dir, path.join(req.attachTarget.dir, filename)).split(path.sep).join('/')
+    res.json({ url: req.attachTarget.link(filename), path: rel })
   })
 
   app.get('/api/doc/:room/backlinks', (req, res) => {
@@ -2121,7 +2187,8 @@ async function main() {
       socket.destroy()
       return
     }
-    const role = validId(room) ? sessionRole(session, room) : null
+    // Fichier quelconque (PDF, image…) : pas d'édition en direct, sa copie Yjs l'écraserait
+    const role = validId(room) && getDocMeta(room)?.type !== 'file' ? sessionRole(session, room) : null
     if (!role) {
       socket.write('HTTP/1.1 403 Forbidden\r\n\r\n')
       socket.destroy()

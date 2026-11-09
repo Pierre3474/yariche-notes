@@ -295,6 +295,27 @@ installed in production (`npm ci --omit=dev`) and the client bundle; it was gene
 | zod-to-json-schema | 3.25.2 | ISC | https://github.com/StefanTerdell/zod-to-json-schema |
 | zod | 3.25.76 | MIT | https://github.com/colinhacks/zod |
 
+## Cover images
+
+The page covers in `client/public/covers/` are cropped (1600 × 500) and resized copies of
+public domain works. Artworks come from The Metropolitan Museum of Art Open Access program
+(CC0). Photographs come from the NASA Image and Video Library; NASA material is not
+protected by copyright in the United States, and its use does not imply NASA endorsement.
+
+- `vague-hokusai.jpg`: Katsushika Hokusai, Under the Wave off Kanagawa (Kanagawa oki nami ura), also known as The Great Wave, from the series Thirty-six Views of Mount Fuji (Fugaku sanjūrokkei), ca. 1830–32. The Metropolitan Museum of Art, Open Access (CC0). https://www.metmuseum.org/art/collection/search/45434
+- `champ-de-ble-van-gogh.jpg`: Vincent van Gogh, Wheat Field with Cypresses, 1889. The Metropolitan Museum of Art, Open Access (CC0). https://www.metmuseum.org/art/collection/search/436535
+- `mont-holyoke-cole.jpg`: Thomas Cole, View from Mount Holyoke, Northampton, Massachusetts, after a Thunderstorm—The Oxbow, 1836. The Metropolitan Museum of Art, Open Access (CC0). https://www.metmuseum.org/art/collection/search/10497
+- `andes-church.jpg`: Frederic Edwin Church, Heart of the Andes, 1859. The Metropolitan Museum of Art, Open Access (CC0). https://www.metmuseum.org/art/collection/search/10481
+- `lac-louise-bierstadt.jpg`: Albert Bierstadt, Canadian Rockies (Lake Louise), ca. 1889. The Metropolitan Museum of Art, Open Access (CC0). https://www.metmuseum.org/art/collection/search/10149
+- `oliviers-van-gogh.jpg`: Vincent van Gogh, Olive Trees, 1889. The Metropolitan Museum of Art, Open Access (CC0). https://www.metmuseum.org/art/collection/search/437998
+- `port-gloucester-lane.jpg`: Fitz Henry Lane (formerly Fitz Hugh Lane), Stage Fort across Gloucester Harbor, 1862. The Metropolitan Museum of Art, Open Access (CC0). https://www.metmuseum.org/art/collection/search/11396
+- `jardin-argenteuil-manet.jpg`: Edouard Manet, The Monet Family in Their Garden at Argenteuil, 1874. The Metropolitan Museum of Art, Open Access (CC0). https://www.metmuseum.org/art/collection/search/436965
+- `nebuleuse-carina-webb.jpg`: James Webb Space Telescope NIRCam Image of the “Cosmic Cliffs” in Carina Nebula. NASA (STScI (Webb)), NASA Image and Video Library, carina_nebula. https://images.nasa.gov/details/carina_nebula
+- `bille-bleue.jpg`: Most Amazing High Definition Image of Earth - Blue Marble 2012. NASA (GSFC), NASA Image and Video Library, GSFC_20171208_Archive_e001386. https://images.nasa.gov/details/GSFC_20171208_Archive_e001386
+- `aurore-iss.jpg`: The aurora borealis blankets the Earth. NASA (JSC), NASA Image and Video Library, iss072e159172. https://images.nasa.gov/details/iss072e159172
+- `lumieres-nocturnes.jpg`: City Lights of South America’s Atlantic Coast. NASA (GSFC), NASA Image and Video Library, GSFC_20171208_Archive_e001637. https://images.nasa.gov/details/GSFC_20171208_Archive_e001637
+- `voie-lactee.jpg`: A Glimpse of the Milky Way. NASA (JPL, NASA/JPL-Caltech/University of Wisconsin), NASA Image and Video Library, PIA03239. https://images.nasa.gov/details/PIA03239
+
 ## Desktop apps
 
 The Windows and Linux apps (Tauri) and the macOS app have their own dependencies: see
